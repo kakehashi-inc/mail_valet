@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcApi } from '../shared/ipc';
 
 // IPCチャンネル定義（ランタイムでsharedからインポートを避けるためローカルコピー）
-const IPC_CHANNELS = {
+const CH = {
     APP_GET_INFO: 'app:getInfo',
     APP_SET_THEME: 'app:setTheme',
     APP_SET_LANGUAGE: 'app:setLanguage',
@@ -11,37 +11,135 @@ const IPC_CHANNELS = {
     WINDOW_CLOSE: 'window:close',
     WINDOW_IS_MAXIMIZED: 'window:isMaximized',
     MAIN_CONSOLE: 'main:console',
+    SETTINGS_GET_GENERAL: 'settings:getGeneral',
+    SETTINGS_SAVE_GENERAL: 'settings:saveGeneral',
+    SETTINGS_GET_FETCH: 'settings:getFetch',
+    SETTINGS_SAVE_FETCH: 'settings:saveFetch',
+    SETTINGS_GET_DELETE: 'settings:getDelete',
+    SETTINGS_SAVE_DELETE: 'settings:saveDelete',
+    SETTINGS_GET_OLLAMA: 'settings:getOllama',
+    SETTINGS_SAVE_OLLAMA: 'settings:saveOllama',
+    SETTINGS_GET_GCP: 'settings:getGcp',
+    SETTINGS_SAVE_GCP: 'settings:saveGcp',
+    SETTINGS_IMPORT_GCP_JSON: 'settings:importGcpJson',
+    ACCOUNTS_GET_ALL: 'accounts:getAll',
+    ACCOUNTS_ADD: 'accounts:add',
+    ACCOUNTS_REMOVE: 'accounts:remove',
+    ACCOUNTS_GET_LABELS: 'accounts:getLabels',
+    ACCOUNTS_GET_SELECTED_LABELS: 'accounts:getSelectedLabels',
+    ACCOUNTS_SAVE_SELECTED_LABELS: 'accounts:saveSelectedLabels',
+    ACCOUNTS_REFRESH_LABELS: 'accounts:refreshLabels',
+    ACCOUNTS_GET_CONNECTION_STATUS: 'accounts:getConnectionStatus',
+    GMAIL_FETCH_EMAILS: 'gmail:fetchEmails',
+    GMAIL_GET_EMAIL_BODY: 'gmail:getEmailBody',
+    GMAIL_GET_EMAIL_RAW: 'gmail:getEmailRaw',
+    GMAIL_BULK_DELETE_BY_FROM: 'gmail:bulkDeleteByFrom',
+    GMAIL_GET_CACHED_RESULT: 'gmail:getCachedResult',
+    OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
+    OLLAMA_GET_MODELS: 'ollama:getModels',
+    OLLAMA_RUN_JUDGMENT: 'ollama:runJudgment',
+    OLLAMA_CANCEL_JUDGMENT: 'ollama:cancelJudgment',
+    DATA_CLEAR_AI_CACHE: 'data:clearAiCache',
+    DATA_CLEAR_ALL_CACHE: 'data:clearAllCache',
+    DATA_EXPORT_SETTINGS: 'data:exportSettings',
+    DATA_IMPORT_SETTINGS: 'data:importSettings',
+    DATA_RESET_ALL: 'data:resetAll',
+    DETAIL_OPEN: 'detail:open',
+    DETAIL_GET_DATA: 'detail:getData',
+    EVENT_FETCH_PROGRESS: 'event:fetchProgress',
+    EVENT_AI_PROGRESS: 'event:aiProgress',
+    EVENT_DETAIL_DATA: 'event:detailData',
+    STATE_GET: 'state:get',
+    STATE_SAVE: 'state:save',
 } as const;
 
 const api: IpcApi = {
-    async getAppInfo() {
-        return ipcRenderer.invoke(IPC_CHANNELS.APP_GET_INFO);
+    // App
+    getAppInfo: () => ipcRenderer.invoke(CH.APP_GET_INFO),
+    setTheme: theme => ipcRenderer.invoke(CH.APP_SET_THEME, theme),
+    setLanguage: language => ipcRenderer.invoke(CH.APP_SET_LANGUAGE, language),
+
+    // Window
+    minimize: () => ipcRenderer.invoke(CH.WINDOW_MINIMIZE),
+    maximizeOrRestore: () => ipcRenderer.invoke(CH.WINDOW_MAXIMIZE_OR_RESTORE),
+    isMaximized: () => ipcRenderer.invoke(CH.WINDOW_IS_MAXIMIZED),
+    close: () => ipcRenderer.invoke(CH.WINDOW_CLOSE),
+
+    // Settings
+    getGeneralSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_GENERAL),
+    saveGeneralSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_GENERAL, s),
+    getFetchSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_FETCH),
+    saveFetchSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_FETCH, s),
+    getDeleteSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_DELETE),
+    saveDeleteSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_DELETE, s),
+    getOllamaSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_OLLAMA),
+    saveOllamaSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_OLLAMA, s),
+    getGcpSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_GCP),
+    saveGcpSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_GCP, s),
+    importGcpJson: () => ipcRenderer.invoke(CH.SETTINGS_IMPORT_GCP_JSON),
+
+    // Accounts
+    getAccounts: () => ipcRenderer.invoke(CH.ACCOUNTS_GET_ALL),
+    addAccount: () => ipcRenderer.invoke(CH.ACCOUNTS_ADD),
+    removeAccount: id => ipcRenderer.invoke(CH.ACCOUNTS_REMOVE, id),
+    getLabels: id => ipcRenderer.invoke(CH.ACCOUNTS_GET_LABELS, id),
+    getSelectedLabels: id => ipcRenderer.invoke(CH.ACCOUNTS_GET_SELECTED_LABELS, id),
+    saveSelectedLabels: (id, s) => ipcRenderer.invoke(CH.ACCOUNTS_SAVE_SELECTED_LABELS, id, s),
+    refreshLabels: id => ipcRenderer.invoke(CH.ACCOUNTS_REFRESH_LABELS, id),
+    getConnectionStatus: id => ipcRenderer.invoke(CH.ACCOUNTS_GET_CONNECTION_STATUS, id),
+
+    // Gmail
+    fetchEmails: options => ipcRenderer.invoke(CH.GMAIL_FETCH_EMAILS, options),
+    getEmailBody: (accountId, messageId) => ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_BODY, accountId, messageId),
+    getEmailRaw: (accountId, messageId) => ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_RAW, accountId, messageId),
+    bulkDeleteByFrom: (accountId, fromAddresses) =>
+        ipcRenderer.invoke(CH.GMAIL_BULK_DELETE_BY_FROM, accountId, fromAddresses),
+    getCachedResult: accountId => ipcRenderer.invoke(CH.GMAIL_GET_CACHED_RESULT, accountId),
+
+    // Ollama
+    testOllamaConnection: host => ipcRenderer.invoke(CH.OLLAMA_TEST_CONNECTION, host),
+    getOllamaModels: host => ipcRenderer.invoke(CH.OLLAMA_GET_MODELS, host),
+    runAIJudgment: (accountId, messageIds) => ipcRenderer.invoke(CH.OLLAMA_RUN_JUDGMENT, accountId, messageIds),
+    cancelAIJudgment: () => ipcRenderer.invoke(CH.OLLAMA_CANCEL_JUDGMENT),
+
+    // Data
+    clearAICache: () => ipcRenderer.invoke(CH.DATA_CLEAR_AI_CACHE),
+    clearAllCache: () => ipcRenderer.invoke(CH.DATA_CLEAR_ALL_CACHE),
+    exportSettings: () => ipcRenderer.invoke(CH.DATA_EXPORT_SETTINGS),
+    importSettings: json => ipcRenderer.invoke(CH.DATA_IMPORT_SETTINGS, json),
+    resetAllData: () => ipcRenderer.invoke(CH.DATA_RESET_ALL),
+
+    // Detail
+    openDetailWindow: data => ipcRenderer.invoke(CH.DETAIL_OPEN, data),
+    getDetailData: () => ipcRenderer.invoke(CH.DETAIL_GET_DATA),
+
+    // State
+    getAppState: () => ipcRenderer.invoke(CH.STATE_GET),
+    saveAppState: state => ipcRenderer.invoke(CH.STATE_SAVE, state),
+
+    // Event listeners (return unsubscribe function)
+    onFetchProgress: callback => {
+        const handler = (_event: unknown, progress: any) => callback(progress);
+        ipcRenderer.on(CH.EVENT_FETCH_PROGRESS, handler);
+        return () => ipcRenderer.removeListener(CH.EVENT_FETCH_PROGRESS, handler);
     },
-    async setTheme(theme) {
-        return ipcRenderer.invoke(IPC_CHANNELS.APP_SET_THEME, theme);
+    onAIProgress: callback => {
+        const handler = (_event: unknown, progress: any) => callback(progress);
+        ipcRenderer.on(CH.EVENT_AI_PROGRESS, handler);
+        return () => ipcRenderer.removeListener(CH.EVENT_AI_PROGRESS, handler);
     },
-    async setLanguage(language) {
-        return ipcRenderer.invoke(IPC_CHANNELS.APP_SET_LANGUAGE, language);
-    },
-    async minimize() {
-        return ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MINIMIZE);
-    },
-    async maximizeOrRestore() {
-        return ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MAXIMIZE_OR_RESTORE);
-    },
-    async isMaximized() {
-        return ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED);
-    },
-    async close() {
-        return ipcRenderer.invoke(IPC_CHANNELS.WINDOW_CLOSE);
+    onDetailData: callback => {
+        const handler = (_event: unknown, data: any) => callback(data);
+        ipcRenderer.on(CH.EVENT_DETAIL_DATA, handler);
+        return () => ipcRenderer.removeListener(CH.EVENT_DETAIL_DATA, handler);
     },
 };
 
 contextBridge.exposeInMainWorld('mailvalet', api);
 
-// メインプロセスのコンソールメッセージを受信してDevToolsに転送
+// Console bridge: forward main process logs to DevTools
 ipcRenderer.on(
-    IPC_CHANNELS.MAIN_CONSOLE,
+    CH.MAIN_CONSOLE,
     (
         _event,
         data: {
@@ -50,7 +148,6 @@ ipcRenderer.on(
         }
     ) => {
         const { level, args } = data;
-        // DevTools出力用に引数をデシリアライズ
         const deserializedArgs = args.map(arg => {
             if (arg.type === 'error') {
                 const error = new Error(arg.message || 'Unknown error');
@@ -67,8 +164,6 @@ ipcRenderer.on(
                 return arg.value;
             }
         });
-
-        // レンダラーコンソールに転送（DevToolsに表示される）
         switch (level) {
             case 'log':
                 console.log('[Main]', ...deserializedArgs);

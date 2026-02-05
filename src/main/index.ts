@@ -1,16 +1,26 @@
 import path from 'path';
 import { app, BrowserWindow, nativeTheme, ipcMain } from 'electron';
 import { setupConsoleBridge, setMainWindow } from './utils/console-bridge';
-import { registerIpcHandlers } from './ipc/index';
+import { registerIpcHandlers, setMainWindowRef } from './ipc/index';
+import { ensureDirectories, fileExists } from './services/file-manager';
+import { getAppState, saveAppState } from './services/state-manager';
+import { getGeneralSettings, saveGeneralSettings } from './services/settings-manager';
+import { IPC_CHANNELS, getGeneralSettingsPath } from '../shared/constants';
+import type { AppInfo, AppLanguage, AppTheme, PlatformId } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
 
-function createWindow() {
+async function createWindow() {
+    const appState = await getAppState();
+    const bounds = appState.windowBounds;
+
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: bounds?.width || 1200,
+        height: bounds?.height || 800,
+        x: bounds?.x,
+        y: bounds?.y,
         frame: false,
         titleBarStyle: 'hidden',
         webPreferences: {
@@ -19,18 +29,21 @@ function createWindow() {
         show: false,
     });
 
-    // コンソールブリッジ用にメインウィンドウを設定
+    if (bounds?.isMaximized) {
+        mainWindow.maximize();
+    }
+
+    // Set refs for console bridge and IPC handlers
     setMainWindow(mainWindow);
+    setMainWindowRef(mainWindow);
 
     if (isDev) {
         mainWindow.loadURL('http://localhost:3001');
-        // 開発時はDevToolsを自動で開く
         try {
             mainWindow.webContents.openDevTools({ mode: 'detach' });
         } catch {
-            // DevToolsのオープンに失敗した場合は無視
+            // Ignore DevTools open failure
         }
-        // メニューなしでDevToolsを切り替えるためのキーボードショートカット
         mainWindow.webContents.on('before-input-event', (event, input) => {
             const isToggleCombo =
                 (input.key?.toLowerCase?.() === 'i' && (input.control || input.meta) && input.shift) ||
@@ -47,46 +60,80 @@ function createWindow() {
     }
 
     mainWindow.on('ready-to-show', () => mainWindow?.show());
+
+    // Save window bounds on move/resize
+    const saveBounds = () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        const isMaximized = mainWindow.isMaximized();
+        if (!isMaximized) {
+            const [x, y] = mainWindow.getPosition();
+            const [width, height] = mainWindow.getSize();
+            saveAppState({ windowBounds: { x, y, width, height, isMaximized: false } });
+        } else {
+            saveAppState({
+                windowBounds: {
+                    ...((mainWindow as any)._lastBounds || { x: 0, y: 0, width: 1200, height: 800 }),
+                    isMaximized: true,
+                },
+            });
+        }
+    };
+
+    mainWindow.on('resized', saveBounds);
+    mainWindow.on('moved', saveBounds);
+
     mainWindow.on('closed', () => {
         setMainWindow(null);
+        setMainWindowRef(null);
         mainWindow = null;
     });
 }
 
-app.whenReady().then(async () => {
-    // コンソールブリッジをセットアップしてメインプロセスのログをDevToolsに送信
-    setupConsoleBridge();
+function resolveTheme(theme: AppTheme): AppTheme {
+    if (theme === 'system') return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    return theme;
+}
 
-    // アプリケーション固有のIPCハンドラを登録
+app.whenReady().then(async () => {
+    await ensureDirectories();
+
+    // First launch: detect OS language, save to settings
+    const isFirstLaunch = !(await fileExists(getGeneralSettingsPath()));
+    if (isFirstLaunch) {
+        const detectedLanguage: AppLanguage = app.getLocale().startsWith('ja') ? 'ja' : 'en';
+        await saveGeneralSettings({ language: detectedLanguage, theme: 'system' });
+    }
+
+    setupConsoleBridge();
     registerIpcHandlers();
 
-    // アプリ情報取得とウィンドウ制御のIPC
-    ipcMain.handle('app:getInfo', async () => {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // App info
+    ipcMain.handle(IPC_CHANNELS.APP_GET_INFO, async (): Promise<AppInfo> => {
         const pkg = require('../../package.json');
+        const generalSettings = await getGeneralSettings();
         return {
-            name: app.getName() || pkg.name || 'Default App',
+            name: 'Mail Valet',
             version: pkg.version || app.getVersion(),
-            language: (app.getLocale().startsWith('ja') ? 'ja' : 'en') as 'ja' | 'en',
-            theme: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
-            os: process.platform as 'win32' | 'darwin' | 'linux',
+            language: generalSettings.language,
+            theme: resolveTheme(generalSettings.theme),
+            os: process.platform as PlatformId,
         };
     });
 
-    ipcMain.handle('app:setTheme', (_e, theme: 'light' | 'dark' | 'system') => {
+    ipcMain.handle(IPC_CHANNELS.APP_SET_THEME, async (_e, theme: AppTheme) => {
         nativeTheme.themeSource = theme;
         return { theme };
     });
 
-    ipcMain.handle('app:setLanguage', (_e, lang: 'ja' | 'en') => {
-        // 必要に応じて設定に保存
+    ipcMain.handle(IPC_CHANNELS.APP_SET_LANGUAGE, async (_e, lang: AppLanguage) => {
         return { language: lang };
     });
 
-    ipcMain.handle('window:minimize', () => {
+    // Window controls
+    ipcMain.handle(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
         mainWindow?.minimize();
     });
-    ipcMain.handle('window:maximizeOrRestore', () => {
+    ipcMain.handle(IPC_CHANNELS.WINDOW_MAXIMIZE_OR_RESTORE, () => {
         if (!mainWindow) return false;
         if (mainWindow.isMaximized()) {
             mainWindow.unmaximize();
@@ -95,11 +142,12 @@ app.whenReady().then(async () => {
         mainWindow.maximize();
         return true;
     });
-    ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
-    ipcMain.handle('window:close', () => {
+    ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => mainWindow?.isMaximized() ?? false);
+    ipcMain.handle(IPC_CHANNELS.WINDOW_CLOSE, () => {
         mainWindow?.close();
     });
-    createWindow();
+
+    await createWindow();
 });
 
 app.on('window-all-closed', () => {

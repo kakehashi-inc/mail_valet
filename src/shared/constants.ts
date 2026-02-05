@@ -1,20 +1,141 @@
 import os from 'os';
 import path from 'path';
 
-// アプリケーションのディレクトリ名
 export const APP_DIR_NAME = '.mailvalet';
 
-// ホームディレクトリを取得
 export function getHomeDir(): string {
     return os.homedir();
 }
 
-// アプリルートディレクトリを取得
 export function getAppRootDir(): string {
     return path.join(getHomeDir(), APP_DIR_NAME);
 }
 
-// IPCチャンネル定義
+// Sub-directory paths
+export function getSettingsDir(): string {
+    return path.join(getAppRootDir(), 'settings');
+}
+
+export function getAccountsDir(): string {
+    return path.join(getAppRootDir(), 'accounts');
+}
+
+export function getAccountDir(accountId: string): string {
+    return path.join(getAccountsDir(), accountId);
+}
+
+export function getAccountCacheDir(accountId: string): string {
+    return path.join(getAccountDir(accountId), 'cache');
+}
+
+export function getCacheDir(): string {
+    return path.join(getAppRootDir(), 'cache');
+}
+
+export function getStateDir(): string {
+    return path.join(getAppRootDir(), 'state');
+}
+
+export function getLogsDir(): string {
+    return path.join(getAppRootDir(), 'logs');
+}
+
+// Settings file paths
+export function getGeneralSettingsPath(): string {
+    return path.join(getSettingsDir(), 'general.json');
+}
+
+export function getFetchSettingsPath(): string {
+    return path.join(getSettingsDir(), 'fetch.json');
+}
+
+export function getDeleteSettingsPath(): string {
+    return path.join(getSettingsDir(), 'delete.json');
+}
+
+export function getOllamaSettingsPath(): string {
+    return path.join(getSettingsDir(), 'ollama.json');
+}
+
+export function getGcpSettingsPath(): string {
+    return path.join(getSettingsDir(), 'gcp.json');
+}
+
+// Account file paths
+export function getAccountProfilePath(accountId: string): string {
+    return path.join(getAccountDir(accountId), 'profile.json');
+}
+
+export function getAccountTokensPath(accountId: string): string {
+    return path.join(getAccountDir(accountId), 'tokens.json');
+}
+
+export function getAccountLabelsPath(accountId: string): string {
+    return path.join(getAccountDir(accountId), 'labels.json');
+}
+
+export function getSamplingResultPath(accountId: string): string {
+    return path.join(getAccountCacheDir(accountId), 'sampling.json');
+}
+
+export function getSamplingMetaPath(accountId: string): string {
+    return path.join(getAccountCacheDir(accountId), 'sampling_meta.json');
+}
+
+// Global cache
+export function getAIJudgmentCachePath(): string {
+    return path.join(getCacheDir(), 'ai_judgments.json');
+}
+
+// State
+export function getAppStatePath(): string {
+    return path.join(getStateDir(), 'app.json');
+}
+
+// Gmail API
+export const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
+export const GOOGLE_OAUTH_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+export const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
+export const GMAIL_SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+];
+export const OAUTH_REDIRECT_URI = 'http://127.0.0.1';
+
+// Defaults
+export const DEFAULT_GENERAL_SETTINGS = {
+    language: 'en' as const,
+    theme: 'system' as const,
+};
+
+export const DEFAULT_FETCH_SETTINGS = {
+    samplingDays: 30,
+    maxFetchCount: 1000,
+    readFilter: 'all' as const,
+};
+
+export const DEFAULT_DELETE_SETTINGS = {
+    excludeImportant: true,
+    excludeStarred: true,
+};
+
+export const DEFAULT_OLLAMA_SETTINGS = {
+    host: 'http://localhost:11434',
+    model: '',
+    timeout: 180,
+    concurrency: 1,
+};
+
+export const DEFAULT_GCP_SETTINGS = {
+    clientId: '',
+    clientSecret: '',
+    projectId: '',
+};
+
+// IPC Channels
 export const IPC_CHANNELS = {
     APP_GET_INFO: 'app:getInfo',
     APP_SET_THEME: 'app:setTheme',
@@ -24,4 +145,44 @@ export const IPC_CHANNELS = {
     WINDOW_CLOSE: 'window:close',
     WINDOW_IS_MAXIMIZED: 'window:isMaximized',
     MAIN_CONSOLE: 'main:console',
+    SETTINGS_GET_GENERAL: 'settings:getGeneral',
+    SETTINGS_SAVE_GENERAL: 'settings:saveGeneral',
+    SETTINGS_GET_FETCH: 'settings:getFetch',
+    SETTINGS_SAVE_FETCH: 'settings:saveFetch',
+    SETTINGS_GET_DELETE: 'settings:getDelete',
+    SETTINGS_SAVE_DELETE: 'settings:saveDelete',
+    SETTINGS_GET_OLLAMA: 'settings:getOllama',
+    SETTINGS_SAVE_OLLAMA: 'settings:saveOllama',
+    SETTINGS_GET_GCP: 'settings:getGcp',
+    SETTINGS_SAVE_GCP: 'settings:saveGcp',
+    SETTINGS_IMPORT_GCP_JSON: 'settings:importGcpJson',
+    ACCOUNTS_GET_ALL: 'accounts:getAll',
+    ACCOUNTS_ADD: 'accounts:add',
+    ACCOUNTS_REMOVE: 'accounts:remove',
+    ACCOUNTS_GET_LABELS: 'accounts:getLabels',
+    ACCOUNTS_GET_SELECTED_LABELS: 'accounts:getSelectedLabels',
+    ACCOUNTS_SAVE_SELECTED_LABELS: 'accounts:saveSelectedLabels',
+    ACCOUNTS_REFRESH_LABELS: 'accounts:refreshLabels',
+    ACCOUNTS_GET_CONNECTION_STATUS: 'accounts:getConnectionStatus',
+    GMAIL_FETCH_EMAILS: 'gmail:fetchEmails',
+    GMAIL_GET_EMAIL_BODY: 'gmail:getEmailBody',
+    GMAIL_GET_EMAIL_RAW: 'gmail:getEmailRaw',
+    GMAIL_BULK_DELETE_BY_FROM: 'gmail:bulkDeleteByFrom',
+    GMAIL_GET_CACHED_RESULT: 'gmail:getCachedResult',
+    OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
+    OLLAMA_GET_MODELS: 'ollama:getModels',
+    OLLAMA_RUN_JUDGMENT: 'ollama:runJudgment',
+    OLLAMA_CANCEL_JUDGMENT: 'ollama:cancelJudgment',
+    DATA_CLEAR_AI_CACHE: 'data:clearAiCache',
+    DATA_CLEAR_ALL_CACHE: 'data:clearAllCache',
+    DATA_EXPORT_SETTINGS: 'data:exportSettings',
+    DATA_IMPORT_SETTINGS: 'data:importSettings',
+    DATA_RESET_ALL: 'data:resetAll',
+    DETAIL_OPEN: 'detail:open',
+    DETAIL_GET_DATA: 'detail:getData',
+    EVENT_FETCH_PROGRESS: 'event:fetchProgress',
+    EVENT_AI_PROGRESS: 'event:aiProgress',
+    EVENT_DETAIL_DATA: 'event:detailData',
+    STATE_GET: 'state:get',
+    STATE_SAVE: 'state:save',
 } as const;
