@@ -1,111 +1,111 @@
 # Mail Valet
 
-## 1. システム概要
+## 1. System Overview
 
-Mail Valetは、複数のGmailアカウントを一括管理し、不要メールの効率的な整理を支援するデスクトップアプリケーションです。
+Mail Valet is a desktop application that manages multiple Gmail accounts in one place and helps you efficiently clean up unwanted emails.
 
-### 主な機能
+### Key Features
 
-- **複数Gmailアカウント管理**: OAuth2認証による安全なマルチアカウント対応
-- **メールサンプリング**: 日数または日付範囲指定でメールを取得し、From別にグループ化
-- **Ollama AI判定**: ローカルAIによるマーケティング度・迷惑度の自動判定（0-10段階）
-- **一括削除**: 不要なFromグループのメールをゴミ箱に一括移動（重要/スター付きは除外可能）
-- **詳細表示**: Fromグループごとのメール一覧・本文・生データをモーダレスウィンドウで表示
-- **ラベル管理**: Gmailラベルのツリー表示と取得対象の選択
-- **多言語対応**: 日本語/英語（OS言語自動検出）
-- **テーマ**: ライト/ダークモード（OSテーマ自動検出）
-- **データ管理**: 設定エクスポート/インポート、キャッシュクリア、全データリセット
+- **Multi-Gmail Account Management**: Secure multi-account support via OAuth2 authentication
+- **Email Sampling**: Fetch emails by day count or date range, grouped by sender (From)
+- **Ollama AI Classification**: Automatic marketing/spam scoring (0-10 scale) using a local AI
+- **Bulk Deletion**: Move unwanted sender groups to trash in bulk (with options to exclude important/starred emails)
+- **Detail View**: View email list, body, and raw data per sender group in a modeless window
+- **Label Management**: Gmail label tree view with selectable fetch targets
+- **Multilingual**: Japanese / English (auto-detected from OS language)
+- **Themes**: Light / Dark mode (auto-detected from OS theme)
+- **Data Management**: Settings export/import, cache clear, full data reset
 
-### 技術スタック
+### Tech Stack
 
-| 分類 | 技術 |
-| ------ | ------ |
-| フレームワーク | Electron 38 |
-| フロントエンド | React 19 + MUI v7 |
-| 言語 | TypeScript 5 |
-| 状態管理 | Zustand 5 |
-| 多言語 | i18next |
-| ビルド | Vite 7 (Renderer) / tsc (Main) |
-| 外部連携 | GCP Gmail API, Ollama |
-| データ保存 | `~/.mailvalet/` (ファイルベースJSON + AES-256-GCM暗号化) |
+| Category | Technology |
+| --- | --- |
+| Framework | Electron 38 |
+| Frontend | React 19 + MUI v7 |
+| Language | TypeScript 5 |
+| State Management | Zustand 5 |
+| i18n | i18next |
+| Build | Vite 7 (Renderer) / tsc (Main) |
+| External Services | GCP Gmail API, Ollama |
+| Data Storage | `~/.mailvalet/` (file-based JSON + AES-256-GCM encryption) |
 
-## 2. 対応OS
+## 2. Supported Platforms
 
 - Windows 10/11
 - macOS 10.15+
-- Linux (Debian系/RHEL系)
+- Linux (Debian-based / RHEL-based)
 
-注記: 本プロジェクトは Windows ではコード署名を行っていません。SmartScreen が警告を表示する場合は「詳細情報」→「実行」を選択してください。
+Note: This project does not code-sign on Windows. If SmartScreen displays a warning, click "More info" then "Run anyway".
 
-## 3. 開発者向けリファレンス
+## 3. Developer Reference
 
-### 開発ルール
+### Development Rules
 
-- 開発者の参照するドキュメントは`README.md`を除き`Documents`に配置すること。
-- 対応後は必ずリンターで確認を行い適切な修正を行うこと。故意にリンターエラーを許容する際は、その旨をコメントで明記すること。 **ビルドはリリース時に行うものでデバックには不要なのでリンターまでで十分**
-- 一時的なスクリプトなど（例:調査用スクリプト）は`scripts`ディレクトリに配置すること。
-- データモデルの実装時は、テーブル単位でファイルを配置すること。
-- データモデルを作成および変更を加えた場合は、`Documents/テーブル定義.md`を更新すること。テーブル定義はテーブルごとに表で表現し、カラム名や型およびリレーションを表内で表現すること。
-- システムの動作などに変更があった場合は、`Documents/システム仕様.md`を更新すること。
+- All developer-facing documents, except `README.md`, must be placed in the `Documents` directory.
+- After every change, run the linter and fix all issues. If a linter error is intentionally suppressed, add a comment explaining the reason. **A full build is only required for releases; running the linter alone is sufficient during development.**
+- Temporary or investigative scripts (e.g., research/debug scripts) must be placed in the `scripts` directory.
+- When implementing data models, create one file per table.
+- When creating or modifying a data model, update `Documents/テーブル定義.md`. Table definitions must be expressed as one table per database table, with column names, types, and relations documented within the table.
+- When system behavior changes, update `Documents/システム仕様.md`.
 
-### 必要要件
+### Prerequisites
 
-- Node.js 22.x以上
+- Node.js 22.x or later
 - yarn 4
 - Git
 
-### インストール
+### Installation
 
 ```bash
-# リポジトリのクローン
+# Clone the repository
 git clone <repository-url>
 cd <repository-name>
 
-# 依存関係のインストール
+# Install dependencies
 yarn install
 
-# 開発起動
+# Start in development mode
 yarn dev
 ```
 
-開発時のDevTools:
+DevTools during development:
 
-- DevTools はデタッチ表示で自動的に開きます
-- F12 または Ctrl+Shift+I（macOSは Cmd+Option+I）でトグル可能
+- DevTools opens automatically in detached mode
+- Toggle with F12 or Ctrl+Shift+I (Cmd+Option+I on macOS)
 
-### ビルド/配布
+### Build / Distribution
 
-- 全プラットフォーム: `yarn dist`
+- All platforms: `yarn dist`
 - Windows: `yarn dist:win`
 - macOS: `yarn dist:mac`
 - Linux: `yarn dist:linux`
 
-開発時は BrowserRouter で `<http://localhost:3001>` を、配布ビルドでは HashRouter で `dist/renderer/index.html` を読み込みます。
+In development, BrowserRouter loads `http://localhost:3001`; in production builds, HashRouter loads `dist/renderer/index.html`.
 
-### Windows 事前準備: 開発者モード
+### Windows Prerequisite: Developer Mode
 
-Windows で署名なしのローカルビルド/配布物を実行・テストする場合は、OSの開発者モードを有効にしてください。
+To run and test unsigned local builds on Windows, enable Developer Mode:
 
-1. 設定 → プライバシーとセキュリティ → 開発者向け
-2. 「開発者モード」をオンにする
-3. OSを再起動
+1. Settings > Privacy & Security > For Developers
+2. Turn on "Developer Mode"
+3. Restart the OS
 
-### プロジェクト構造 (抜粋)
+### Project Structure (excerpt)
 
 ```text
 src/
-├── main/                  # Electron メイン: IPC/各種マネージャ
-│   ├── index.ts           # 起動・ウィンドウ生成・サービス初期化
-│   ├── ipc/               # IPCハンドラ
-│   ├── services/          # 各種サービス
-│   └── utils/             # 各種ユーティリティ
-├── preload/               # renderer へ安全にAPIをブリッジ
+├── main/                  # Electron main: IPC / managers
+│   ├── index.ts           # Startup, window creation, service initialization
+│   ├── ipc/               # IPC handlers
+│   ├── services/          # Services
+│   └── utils/             # Utilities
+├── preload/               # Safely bridges APIs to the renderer
 ├── renderer/              # React + MUI UI
-├── shared/                # 型定義・定数(Default設定/保存パス)
-└── public/                # アイコン等
+├── shared/                # Type definitions & constants (defaults / storage paths)
+└── public/                # Icons, etc.
 ```
 
-### 使用技術
+### Technologies Used
 
 - **Electron**
 - **React (MUI v7)**
@@ -114,8 +114,8 @@ src/
 - **i18next**
 - **Vite**
 
-### Windows用アイコンの作成
+### Creating Windows Icons
 
-```exec
+```bash
 magick public/icon.png -define icon:auto-resize=256,128,96,64,48,32,24,16 public/icon.ico
 ```
