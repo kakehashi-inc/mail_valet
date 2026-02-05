@@ -25,7 +25,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         set({ info, isDetailView });
     },
 
-    updateInfo: (partial) => {
+    updateInfo: partial => {
         const current = get().info;
         if (current) set({ info: { ...current, ...partial } });
     },
