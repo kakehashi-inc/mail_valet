@@ -12,6 +12,7 @@ import type {
     FetchSettings,
     DeleteSettings,
     OllamaSettings,
+    AIJudgmentSettings,
     GcpSettings,
     AccountLabelSelection,
     FetchEmailsOptions,
@@ -46,6 +47,10 @@ export function registerAllIpcHandlers() {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_OLLAMA, () => settingsManager.getOllamaSettings());
     ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE_OLLAMA, (_e, settings: OllamaSettings) =>
         settingsManager.saveOllamaSettings(settings)
+    );
+    ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_AI_JUDGMENT, () => settingsManager.getAIJudgmentSettings());
+    ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE_AI_JUDGMENT, (_e, settings: AIJudgmentSettings) =>
+        settingsManager.saveAIJudgmentSettings(settings)
     );
     ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_GCP, () => settingsManager.getGcpSettings());
     ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE_GCP, (_e, settings: GcpSettings) =>
@@ -155,30 +160,41 @@ export function registerAllIpcHandlers() {
             );
         }
     );
-    ipcMain.handle(IPC_CHANNELS.GMAIL_GET_CACHED_RESULT, (_e, accountId: string) =>
-        gmailService.getCachedResult(accountId)
+    ipcMain.handle(IPC_CHANNELS.GMAIL_GET_CACHED_RESULT, (_e, accountId: string, mode?: string) =>
+        gmailService.getCachedResult(accountId, (mode as 'days' | 'range') || 'days')
     );
 
     // --- Ollama ---
     ipcMain.handle(IPC_CHANNELS.OLLAMA_TEST_CONNECTION, (_e, host: string) => ollamaService.testConnection(host));
     ipcMain.handle(IPC_CHANNELS.OLLAMA_GET_MODELS, (_e, host: string) => ollamaService.getModels(host));
-    ipcMain.handle(IPC_CHANNELS.OLLAMA_RUN_JUDGMENT, async (_e, accountId: string, messageIds: string[]) => {
-        const gcpSettings = await settingsManager.getGcpSettings();
-        const cached = await gmailService.getCachedResult(accountId);
-        if (!cached) throw new Error('No cached result');
-        const targetMessages = cached.result.messages.filter(m => messageIds.includes(m.id));
-        await ollamaService.runAIJudgment(
-            targetMessages,
-            async (msgId: string) => {
-                return gmailService.getEmailBody(accountId, msgId, gcpSettings.clientId, gcpSettings.clientSecret);
-            },
-            progress => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send(IPC_CHANNELS.EVENT_AI_PROGRESS, progress);
+    ipcMain.handle(
+        IPC_CHANNELS.OLLAMA_RUN_JUDGMENT,
+        async (_e, accountId: string, messageIds: string[], mode?: string) => {
+            const fetchMode = (mode as 'days' | 'range') || 'days';
+            const gcpSettings = await settingsManager.getGcpSettings();
+            const cached = await gmailService.getCachedResult(accountId, fetchMode);
+            if (!cached) throw new Error('No cached result');
+            const targetMessages = cached.result.messages.filter(m => messageIds.includes(m.id));
+            const judgments = await ollamaService.runAIJudgment(
+                targetMessages,
+                async (msgId: string) => {
+                    return gmailService.getEmailBodyParts(
+                        accountId,
+                        msgId,
+                        gcpSettings.clientId,
+                        gcpSettings.clientSecret
+                    );
+                },
+                progress => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send(IPC_CHANNELS.EVENT_AI_PROGRESS, progress);
+                    }
                 }
-            }
-        );
-    });
+            );
+            // Save AI judgments to the mode-specific sampling cache
+            await gmailService.updateCachedResultWithAI(accountId, fetchMode, judgments);
+        }
+    );
     ipcMain.handle(IPC_CHANNELS.OLLAMA_CANCEL_JUDGMENT, () => ollamaService.cancelAIJudgment());
 
     // --- Data management ---

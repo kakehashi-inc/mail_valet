@@ -44,6 +44,10 @@ export interface OllamaSettings {
     concurrency: number;
 }
 
+export interface AIJudgmentSettings {
+    allowedLanguages: string[];
+}
+
 export interface GcpSettings {
     clientId: string;
     clientSecret: string;
@@ -90,6 +94,19 @@ export interface AccountLabelSelection {
 }
 
 // ---------------------------------------------------------------------------
+// Fetch Mode
+// ---------------------------------------------------------------------------
+export type FetchMode = 'days' | 'range';
+
+// ---------------------------------------------------------------------------
+// Email Body Parts (for AI judgment content hashing)
+// ---------------------------------------------------------------------------
+export interface EmailBodyParts {
+    plain: string;
+    html: string;
+}
+
+// ---------------------------------------------------------------------------
 // Email / Sampling
 // ---------------------------------------------------------------------------
 export interface EmailMessage {
@@ -131,6 +148,7 @@ export interface SamplingResult {
 }
 
 export interface SamplingMeta {
+    mode: FetchMode;
     startDate: string;
     endDate: string;
     fetchedAt: string;

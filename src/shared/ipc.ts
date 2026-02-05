@@ -6,12 +6,14 @@ import type {
     FetchSettings,
     DeleteSettings,
     OllamaSettings,
+    AIJudgmentSettings,
     GcpSettings,
     Account,
     GmailLabel,
     AccountLabelSelection,
     SamplingResult,
     SamplingMeta,
+    FetchMode,
     DeleteResult,
     FetchEmailsOptions,
     DetailWindowData,
@@ -41,6 +43,8 @@ export type IpcApi = {
     saveDeleteSettings(settings: DeleteSettings): Promise<void>;
     getOllamaSettings(): Promise<OllamaSettings>;
     saveOllamaSettings(settings: OllamaSettings): Promise<void>;
+    getAIJudgmentSettings(): Promise<AIJudgmentSettings>;
+    saveAIJudgmentSettings(settings: AIJudgmentSettings): Promise<void>;
     getGcpSettings(): Promise<GcpSettings>;
     saveGcpSettings(settings: GcpSettings): Promise<void>;
     importGcpJson(): Promise<GcpSettings | null>;
@@ -60,12 +64,12 @@ export type IpcApi = {
     getEmailBody(accountId: string, messageId: string): Promise<string>;
     getEmailRaw(accountId: string, messageId: string): Promise<string>;
     bulkDeleteByFrom(accountId: string, fromAddresses: string[]): Promise<DeleteResult>;
-    getCachedResult(accountId: string): Promise<{ result: SamplingResult; meta: SamplingMeta } | null>;
+    getCachedResult(accountId: string, mode?: FetchMode): Promise<{ result: SamplingResult; meta: SamplingMeta } | null>;
 
     // Ollama
     testOllamaConnection(host: string): Promise<boolean>;
     getOllamaModels(host: string): Promise<string[]>;
-    runAIJudgment(accountId: string, messageIds: string[]): Promise<void>;
+    runAIJudgment(accountId: string, messageIds: string[], mode?: FetchMode): Promise<void>;
     cancelAIJudgment(): Promise<void>;
 
     // Data management

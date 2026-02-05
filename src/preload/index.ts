@@ -19,6 +19,8 @@ const CH = {
     SETTINGS_SAVE_DELETE: 'settings:saveDelete',
     SETTINGS_GET_OLLAMA: 'settings:getOllama',
     SETTINGS_SAVE_OLLAMA: 'settings:saveOllama',
+    SETTINGS_GET_AI_JUDGMENT: 'settings:getAIJudgment',
+    SETTINGS_SAVE_AI_JUDGMENT: 'settings:saveAIJudgment',
     SETTINGS_GET_GCP: 'settings:getGcp',
     SETTINGS_SAVE_GCP: 'settings:saveGcp',
     SETTINGS_IMPORT_GCP_JSON: 'settings:importGcpJson',
@@ -74,6 +76,8 @@ const api: IpcApi = {
     saveDeleteSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_DELETE, s),
     getOllamaSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_OLLAMA),
     saveOllamaSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_OLLAMA, s),
+    getAIJudgmentSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_AI_JUDGMENT),
+    saveAIJudgmentSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_AI_JUDGMENT, s),
     getGcpSettings: () => ipcRenderer.invoke(CH.SETTINGS_GET_GCP),
     saveGcpSettings: s => ipcRenderer.invoke(CH.SETTINGS_SAVE_GCP, s),
     importGcpJson: () => ipcRenderer.invoke(CH.SETTINGS_IMPORT_GCP_JSON),
@@ -94,12 +98,12 @@ const api: IpcApi = {
     getEmailRaw: (accountId, messageId) => ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_RAW, accountId, messageId),
     bulkDeleteByFrom: (accountId, fromAddresses) =>
         ipcRenderer.invoke(CH.GMAIL_BULK_DELETE_BY_FROM, accountId, fromAddresses),
-    getCachedResult: accountId => ipcRenderer.invoke(CH.GMAIL_GET_CACHED_RESULT, accountId),
+    getCachedResult: (accountId, mode) => ipcRenderer.invoke(CH.GMAIL_GET_CACHED_RESULT, accountId, mode),
 
     // Ollama
     testOllamaConnection: host => ipcRenderer.invoke(CH.OLLAMA_TEST_CONNECTION, host),
     getOllamaModels: host => ipcRenderer.invoke(CH.OLLAMA_GET_MODELS, host),
-    runAIJudgment: (accountId, messageIds) => ipcRenderer.invoke(CH.OLLAMA_RUN_JUDGMENT, accountId, messageIds),
+    runAIJudgment: (accountId, messageIds, mode) => ipcRenderer.invoke(CH.OLLAMA_RUN_JUDGMENT, accountId, messageIds, mode),
     cancelAIJudgment: () => ipcRenderer.invoke(CH.OLLAMA_CANCEL_JUDGMENT),
 
     // Data

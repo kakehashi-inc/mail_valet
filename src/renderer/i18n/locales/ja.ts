@@ -23,8 +23,7 @@ export default {
         samplingPeriod: 'サンプリング期間',
         byDays: '日数指定',
         byRange: '期間指定',
-        fetch: '取得',
-        refresh: '最新の情報を取得',
+        fetch: '最新の情報を取得',
     },
 
     filter: {
@@ -36,6 +35,8 @@ export default {
         count: '件数',
         frequency: '頻度',
         subject: '代表件名',
+        marketing: '宣伝',
+        spam: '迷惑',
         perDay: '件/日',
         searchPlaceholder: 'From/ドメインで検索...',
         noData: 'データがありません。メールを取得してください。',
@@ -49,7 +50,7 @@ export default {
     delete: {
         confirmTitle: '一括削除の確認',
         confirmMessage:
-            '選択した{{groups}}グループからのすべてのメールをゴミ箱に移動しますか？（サンプリング期間外のメールも対象です）',
+            '選択した{{groups}}件の送信元のメールをすべてゴミ箱に移動しますか？サンプリング期間外のメールも含め、該当送信元の全メールが対象です。削除後、最新の状態を表示するには再取得してください。',
     },
 
     status: {
@@ -78,6 +79,7 @@ export default {
         fetch: 'メール取得',
         delete: '削除',
         ollama: 'Ollama',
+        aiJudgment: '自動判定',
         gcp: 'GCP API',
         accounts: 'アカウント',
         data: 'データ',
@@ -97,7 +99,6 @@ export default {
         unread: '未読のみ',
         read: '既読のみ',
         deleteTitle: '削除設定',
-        deleteDescription: '削除方式: ゴミ箱へ移動（固定）。一括削除時に確認ダイアログが表示されます。',
         excludeImportant: '重要マーク付きメールを除外',
         excludeStarred: 'スター付きメールを除外',
         ollamaTitle: 'Ollama設定',
@@ -109,6 +110,24 @@ export default {
         testConnection: '接続テスト',
         connected: '接続成功',
         connectionFailed: '接続失敗',
+        aiJudgmentTitle: 'AI自動判定設定',
+        allowedLanguages: '普段受信する言語',
+        allowedLanguagesHelp:
+            '選択した言語以外のメールはスパムの可能性が高いと判定されます。「すべて」の場合は言語による判定は行いません。',
+        langAll: 'すべて（言語フィルタなし）',
+        langJa: '日本語',
+        langEn: '英語',
+        langZh: '中国語',
+        langKo: '韓国語',
+        langEs: 'スペイン語',
+        langFr: 'フランス語',
+        langDe: 'ドイツ語',
+        langPt: 'ポルトガル語',
+        langRu: 'ロシア語',
+        langAr: 'アラビア語',
+        langIt: 'イタリア語',
+        langTh: 'タイ語',
+        langVi: 'ベトナム語',
         gcpTitle: 'GCP API設定',
         importGcpJson: 'JSONインポート',
         gcpConfigured: '設定済み',

@@ -12,7 +12,7 @@ export default function AIFilterBar() {
                 {t('filter.aiFilter')}:
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 200 }}>
-                <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>M</Typography>
+                <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>{t('list.marketing')}</Typography>
                 <Slider
                     size="small"
                     value={aiFilterMarketing}
@@ -25,7 +25,7 @@ export default function AIFilterBar() {
                 />
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 200 }}>
-                <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>S</Typography>
+                <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>{t('list.spam')}</Typography>
                 <Slider
                     size="small"
                     value={aiFilterSpam}

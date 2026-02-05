@@ -9,9 +9,12 @@ import type {
     SamplingMeta,
     FetchProgress,
     FetchEmailsOptions,
+    FetchMode,
     FromGroup,
     DeleteResult,
     DeleteSettings,
+    AIJudgment,
+    EmailBodyParts,
 } from '../../shared/types';
 import {
     GMAIL_API_BASE,
@@ -408,7 +411,9 @@ export async function fetchEmails(
         totalCount: messages.length,
     };
 
+    const mode: FetchMode = options.useDays ? 'days' : 'range';
     const meta: SamplingMeta = {
+        mode,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         fetchedAt: new Date().toISOString(),
@@ -416,9 +421,9 @@ export async function fetchEmails(
         totalCount: messages.length,
     };
 
-    // Save cache
-    await writeJsonFile(getSamplingResultPath(options.accountId), result);
-    await writeJsonFile(getSamplingMetaPath(options.accountId), meta);
+    // Save cache (per mode)
+    await writeJsonFile(getSamplingResultPath(options.accountId, mode), result);
+    await writeJsonFile(getSamplingMetaPath(options.accountId, mode), meta);
 
     return result;
 }
@@ -432,6 +437,44 @@ export async function getEmailBody(
 ): Promise<string> {
     const msg = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=full`);
     return extractBody(msg.payload || {});
+}
+
+// --- Get email body parts (plain + html separately) ---
+function extractBodyParts(payload: any): EmailBodyParts {
+    const result: EmailBodyParts = { plain: '', html: '' };
+    if (payload.body?.data) {
+        const decoded = decodeBase64Url(payload.body.data);
+        if (payload.mimeType === 'text/html') {
+            result.html = decoded;
+        } else {
+            result.plain = decoded;
+        }
+        return result;
+    }
+    if (payload.parts) {
+        for (const part of payload.parts) {
+            if (part.mimeType === 'text/plain' && part.body?.data && !result.plain) {
+                result.plain = decodeBase64Url(part.body.data);
+            } else if (part.mimeType === 'text/html' && part.body?.data && !result.html) {
+                result.html = decodeBase64Url(part.body.data);
+            } else if (part.parts) {
+                const nested = extractBodyParts(part);
+                if (!result.plain && nested.plain) result.plain = nested.plain;
+                if (!result.html && nested.html) result.html = nested.html;
+            }
+        }
+    }
+    return result;
+}
+
+export async function getEmailBodyParts(
+    accountId: string,
+    messageId: string,
+    clientId: string,
+    clientSecret: string
+): Promise<EmailBodyParts> {
+    const msg = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=full`);
+    return extractBodyParts(msg.payload || {});
 }
 
 // --- Get raw email ---
@@ -532,10 +575,55 @@ export async function searchAndTrashByFrom(
 
 // --- Cache ---
 export async function getCachedResult(
-    accountId: string
+    accountId: string,
+    mode: FetchMode = 'days'
 ): Promise<{ result: SamplingResult; meta: SamplingMeta } | null> {
-    const result = await readJsonFile<SamplingResult | null>(getSamplingResultPath(accountId), null);
-    const meta = await readJsonFile<SamplingMeta | null>(getSamplingMetaPath(accountId), null);
+    const result = await readJsonFile<SamplingResult | null>(getSamplingResultPath(accountId, mode), null);
+    const meta = await readJsonFile<SamplingMeta | null>(getSamplingMetaPath(accountId, mode), null);
     if (result && meta) return { result, meta };
     return null;
+}
+
+// --- Update cached result with AI judgments ---
+export async function updateCachedResultWithAI(
+    accountId: string,
+    mode: FetchMode,
+    judgments: Map<string, AIJudgment>
+): Promise<void> {
+    const cached = await getCachedResult(accountId, mode);
+    if (!cached) return;
+
+    const updateMessages = (msgs: EmailMessage[]): EmailMessage[] =>
+        msgs.map(msg => {
+            const judgment = judgments.get(msg.id);
+            return judgment ? { ...msg, aiJudgment: judgment } : msg;
+        });
+
+    const updatedMessages = updateMessages(cached.result.messages);
+    const updatedFromGroups = cached.result.fromGroups.map(group => {
+        const updatedGroupMessages = updateMessages(group.messages);
+        const marketingScores = updatedGroupMessages.filter(m => m.aiJudgment).map(m => m.aiJudgment!.marketing);
+        const spamScores = updatedGroupMessages.filter(m => m.aiJudgment).map(m => m.aiJudgment!.spam);
+        return {
+            ...group,
+            messages: updatedGroupMessages,
+            aiScoreRange: {
+                marketing:
+                    marketingScores.length > 0
+                        ? ([Math.min(...marketingScores), Math.max(...marketingScores)] as [number, number])
+                        : ([-1, -1] as [number, number]),
+                spam:
+                    spamScores.length > 0
+                        ? ([Math.min(...spamScores), Math.max(...spamScores)] as [number, number])
+                        : ([-1, -1] as [number, number]),
+            },
+        };
+    });
+
+    const updatedResult: SamplingResult = {
+        ...cached.result,
+        messages: updatedMessages,
+        fromGroups: updatedFromGroups,
+    };
+    await writeJsonFile(getSamplingResultPath(accountId, mode), updatedResult);
 }

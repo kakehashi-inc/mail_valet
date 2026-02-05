@@ -1,11 +1,20 @@
 import { create } from 'zustand';
-import type { SamplingResult, SamplingMeta, FromGroup, FetchProgress, AIProgress, AIJudgment } from '@shared/types';
+import type {
+    SamplingResult,
+    SamplingMeta,
+    FetchMode,
+    FromGroup,
+    FetchProgress,
+    AIProgress,
+    AIJudgment,
+} from '@shared/types';
 
 type SortKey = 'count' | 'frequency' | 'name' | 'date';
 
 interface EmailStoreState {
     samplingResult: SamplingResult | null;
     samplingMeta: SamplingMeta | null;
+    fetchMode: FetchMode;
     fromGroups: FromGroup[];
     selectedFromAddresses: Set<string>;
     sortKey: SortKey;
@@ -18,7 +27,8 @@ interface EmailStoreState {
     isFetching: boolean;
     isJudging: boolean;
 
-    loadCachedResult: (accountId: string) => Promise<void>;
+    setFetchMode: (mode: FetchMode) => void;
+    loadCachedResult: (accountId: string, mode?: FetchMode) => Promise<void>;
     fetchEmails: (accountId: string, startDate?: string, endDate?: string, useDays?: boolean) => Promise<void>;
     setSortKey: (key: SortKey) => void;
     setSearchQuery: (query: string) => void;
@@ -72,6 +82,7 @@ function recalcAIScoreRange(group: FromGroup): FromGroup {
 export const useEmailStore = create<EmailStoreState>((set, get) => ({
     samplingResult: null,
     samplingMeta: null,
+    fetchMode: 'days',
     fromGroups: [],
     selectedFromAddresses: new Set(),
     sortKey: 'count',
@@ -84,8 +95,11 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     isFetching: false,
     isJudging: false,
 
-    loadCachedResult: async accountId => {
-        const cached = await window.mailvalet.getCachedResult(accountId);
+    setFetchMode: mode => set({ fetchMode: mode }),
+
+    loadCachedResult: async (accountId, mode) => {
+        const m = mode ?? get().fetchMode;
+        const cached = await window.mailvalet.getCachedResult(accountId, m);
         if (cached) {
             const groups = cached.result.fromGroups.map(recalcAIScoreRange);
             set({
@@ -100,7 +114,8 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     },
 
     fetchEmails: async (accountId, startDate, endDate, useDays) => {
-        set({ isFetching: true, fetchProgress: null });
+        const mode: FetchMode = useDays ? 'days' : 'range';
+        set({ isFetching: true, fetchProgress: null, fetchMode: mode });
         const unsubscribe = window.mailvalet.onFetchProgress(progress => {
             set({ fetchProgress: progress });
         });
@@ -115,7 +130,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
                 fetchProgress: null,
             });
             // Reload meta
-            const cached = await window.mailvalet.getCachedResult(accountId);
+            const cached = await window.mailvalet.getCachedResult(accountId, mode);
             if (cached) set({ samplingMeta: cached.meta });
         } catch (e) {
             set({ isFetching: false, fetchProgress: null });
@@ -152,7 +167,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     },
 
     runAIJudgment: async accountId => {
-        const { samplingResult } = get();
+        const { samplingResult, fetchMode } = get();
         if (!samplingResult) return;
         set({ isJudging: true, aiProgress: null });
         const unsubscribe = window.mailvalet.onAIProgress(progress => {
@@ -160,9 +175,9 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
         });
         try {
             const allIds = samplingResult.messages.map(m => m.id);
-            await window.mailvalet.runAIJudgment(accountId, allIds);
+            await window.mailvalet.runAIJudgment(accountId, allIds, fetchMode);
             // Reload cached result to get updated AI scores
-            await get().loadCachedResult(accountId);
+            await get().loadCachedResult(accountId, fetchMode);
         } finally {
             set({ isJudging: false, aiProgress: null });
             unsubscribe();

@@ -6,6 +6,7 @@ import GeneralTab from './settings/GeneralTab';
 import FetchTab from './settings/FetchTab';
 import DeleteTab from './settings/DeleteTab';
 import OllamaTab from './settings/OllamaTab';
+import AIJudgmentTab from './settings/AIJudgmentTab';
 import GcpTab from './settings/GcpTab';
 import AccountsTab from './settings/AccountsTab';
 import DataTab from './settings/DataTab';
@@ -39,6 +40,7 @@ export default function SettingsDialog({ open, onClose }: Props) {
                 <Tab label={t('settings.fetch')} />
                 <Tab label={t('settings.delete')} />
                 <Tab label={t('settings.ollama')} />
+                <Tab label={t('settings.aiJudgment')} />
                 <Tab label={t('settings.gcp')} />
                 <Tab label={t('settings.accounts')} />
                 <Tab label={t('settings.data')} />
@@ -49,9 +51,10 @@ export default function SettingsDialog({ open, onClose }: Props) {
                     {tab === 1 && <FetchTab />}
                     {tab === 2 && <DeleteTab />}
                     {tab === 3 && <OllamaTab />}
-                    {tab === 4 && <GcpTab />}
-                    {tab === 5 && <AccountsTab />}
-                    {tab === 6 && <DataTab />}
+                    {tab === 4 && <AIJudgmentTab />}
+                    {tab === 5 && <GcpTab />}
+                    {tab === 6 && <AccountsTab />}
+                    {tab === 7 && <DataTab />}
                 </Box>
             </DialogContent>
             <DialogActions>

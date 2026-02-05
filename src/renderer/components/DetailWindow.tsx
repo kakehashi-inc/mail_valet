@@ -88,12 +88,12 @@ export default function DetailWindow() {
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
                     <Typography variant="caption">
-                        Marketing: {data.aiScoreRange.marketing[0] >= 0
+                        {t('list.marketing')}: {data.aiScoreRange.marketing[0] >= 0
                             ? `${data.aiScoreRange.marketing[0]}-${data.aiScoreRange.marketing[1]}`
                             : '-'}
                     </Typography>
                     <Typography variant="caption">
-                        Spam: {data.aiScoreRange.spam[0] >= 0
+                        {t('list.spam')}: {data.aiScoreRange.spam[0] >= 0
                             ? `${data.aiScoreRange.spam[0]}-${data.aiScoreRange.spam[1]}`
                             : '-'}
                     </Typography>
@@ -106,8 +106,8 @@ export default function DetailWindow() {
                         <TableRow>
                             <TableCell>{t('detail.date')}</TableCell>
                             <TableCell>{t('detail.subject')}</TableCell>
-                            <TableCell align="center" sx={{ width: 40 }}>M</TableCell>
-                            <TableCell align="center" sx={{ width: 40 }}>S</TableCell>
+                            <TableCell align="center" sx={{ width: 50, whiteSpace: 'nowrap' }}>{t('list.marketing')}</TableCell>
+                            <TableCell align="center" sx={{ width: 50, whiteSpace: 'nowrap' }}>{t('list.spam')}</TableCell>
                             <TableCell align="center" sx={{ width: 60 }} />
                         </TableRow>
                     </TableHead>
@@ -169,10 +169,10 @@ export default function DetailWindow() {
                                                     {selectedMsg?.aiJudgment && (
                                                         <>
                                                             <Typography variant="caption">
-                                                                Marketing: {selectedMsg.aiJudgment.marketing}/10
+                                                                {t('list.marketing')}: {selectedMsg.aiJudgment.marketing}/10
                                                             </Typography>
                                                             <Typography variant="caption">
-                                                                Spam: {selectedMsg.aiJudgment.spam}/10
+                                                                {t('list.spam')}: {selectedMsg.aiJudgment.spam}/10
                                                             </Typography>
                                                         </>
                                                     )}

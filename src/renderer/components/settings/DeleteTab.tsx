@@ -22,9 +22,6 @@ export default function DeleteTab() {
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Typography variant="h6">{t('settings.deleteTitle')}</Typography>
-            <Typography variant="body2" color="text.secondary">
-                {t('settings.deleteDescription')}
-            </Typography>
             <FormControlLabel
                 control={
                     <Checkbox

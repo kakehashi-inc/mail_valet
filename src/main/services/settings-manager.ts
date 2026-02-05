@@ -1,14 +1,23 @@
-import type { GeneralSettings, FetchSettings, DeleteSettings, OllamaSettings, GcpSettings } from '../../shared/types';
+import type {
+    GeneralSettings,
+    FetchSettings,
+    DeleteSettings,
+    OllamaSettings,
+    AIJudgmentSettings,
+    GcpSettings,
+} from '../../shared/types';
 import {
     getGeneralSettingsPath,
     getFetchSettingsPath,
     getDeleteSettingsPath,
     getOllamaSettingsPath,
+    getAIJudgmentSettingsPath,
     getGcpSettingsPath,
     DEFAULT_GENERAL_SETTINGS,
     DEFAULT_FETCH_SETTINGS,
     DEFAULT_DELETE_SETTINGS,
     DEFAULT_OLLAMA_SETTINGS,
+    DEFAULT_AI_JUDGMENT_SETTINGS,
     DEFAULT_GCP_SETTINGS,
 } from '../../shared/constants';
 import { readJsonFile, writeJsonFile } from './file-manager';
@@ -46,6 +55,14 @@ export async function saveOllamaSettings(settings: OllamaSettings): Promise<void
     await writeJsonFile(getOllamaSettingsPath(), settings);
 }
 
+// AI Judgment
+export async function getAIJudgmentSettings(): Promise<AIJudgmentSettings> {
+    return readJsonFile<AIJudgmentSettings>(getAIJudgmentSettingsPath(), DEFAULT_AI_JUDGMENT_SETTINGS);
+}
+export async function saveAIJudgmentSettings(settings: AIJudgmentSettings): Promise<void> {
+    await writeJsonFile(getAIJudgmentSettingsPath(), settings);
+}
+
 // GCP (client_secret is encrypted)
 export async function getGcpSettings(): Promise<GcpSettings> {
     const raw = await readJsonFile<any>(getGcpSettingsPath(), null);
@@ -75,7 +92,8 @@ export async function exportAllSettings(): Promise<string> {
     const fetchSettings = await getFetchSettings();
     const deleteSettings = await getDeleteSettings();
     const ollama = await getOllamaSettings();
-    return JSON.stringify({ general, fetch: fetchSettings, delete: deleteSettings, ollama }, null, 2);
+    const aiJudgment = await getAIJudgmentSettings();
+    return JSON.stringify({ general, fetch: fetchSettings, delete: deleteSettings, ollama, aiJudgment }, null, 2);
 }
 
 // Import settings from JSON

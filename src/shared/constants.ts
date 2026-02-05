@@ -57,6 +57,10 @@ export function getOllamaSettingsPath(): string {
     return path.join(getSettingsDir(), 'ollama.json');
 }
 
+export function getAIJudgmentSettingsPath(): string {
+    return path.join(getSettingsDir(), 'ai-judgment.json');
+}
+
 export function getGcpSettingsPath(): string {
     return path.join(getSettingsDir(), 'gcp.json');
 }
@@ -74,12 +78,12 @@ export function getAccountLabelsPath(accountId: string): string {
     return path.join(getAccountDir(accountId), 'labels.json');
 }
 
-export function getSamplingResultPath(accountId: string): string {
-    return path.join(getAccountCacheDir(accountId), 'sampling.json');
+export function getSamplingResultPath(accountId: string, mode: string = 'days'): string {
+    return path.join(getAccountCacheDir(accountId), `sampling_${mode}.json`);
 }
 
-export function getSamplingMetaPath(accountId: string): string {
-    return path.join(getAccountCacheDir(accountId), 'sampling_meta.json');
+export function getSamplingMetaPath(accountId: string, mode: string = 'days'): string {
+    return path.join(getAccountCacheDir(accountId), `sampling_${mode}_meta.json`);
 }
 
 // Global cache
@@ -129,6 +133,10 @@ export const DEFAULT_OLLAMA_SETTINGS = {
     concurrency: 1,
 };
 
+export const DEFAULT_AI_JUDGMENT_SETTINGS = {
+    allowedLanguages: [] as string[],
+};
+
 export const DEFAULT_GCP_SETTINGS = {
     clientId: '',
     clientSecret: '',
@@ -153,6 +161,8 @@ export const IPC_CHANNELS = {
     SETTINGS_SAVE_DELETE: 'settings:saveDelete',
     SETTINGS_GET_OLLAMA: 'settings:getOllama',
     SETTINGS_SAVE_OLLAMA: 'settings:saveOllama',
+    SETTINGS_GET_AI_JUDGMENT: 'settings:getAIJudgment',
+    SETTINGS_SAVE_AI_JUDGMENT: 'settings:saveAIJudgment',
     SETTINGS_GET_GCP: 'settings:getGcp',
     SETTINGS_SAVE_GCP: 'settings:saveGcp',
     SETTINGS_IMPORT_GCP_JSON: 'settings:importGcpJson',

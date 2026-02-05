@@ -23,8 +23,7 @@ export default {
         samplingPeriod: 'Sampling period',
         byDays: 'By days',
         byRange: 'By range',
-        fetch: 'Fetch',
-        refresh: 'Refresh',
+        fetch: 'Fetch Latest',
     },
 
     filter: {
@@ -36,6 +35,8 @@ export default {
         count: 'Count',
         frequency: 'Freq.',
         subject: 'Subject',
+        marketing: 'Promo',
+        spam: 'Spam',
         perDay: '/day',
         searchPlaceholder: 'Search by From/domain...',
         noData: 'No data. Please fetch emails.',
@@ -49,7 +50,7 @@ export default {
     delete: {
         confirmTitle: 'Confirm Bulk Delete',
         confirmMessage:
-            'Move ALL emails from {{groups}} selected senders to trash? (Includes emails outside sampling period)',
+            'Move all emails from the {{groups}} selected senders to trash? This includes all emails from these senders, not just those within the sampling period. To see updated results, please fetch again after deletion.',
     },
 
     status: {
@@ -78,6 +79,7 @@ export default {
         fetch: 'Fetch',
         delete: 'Delete',
         ollama: 'Ollama',
+        aiJudgment: 'AI Judgment',
         gcp: 'GCP API',
         accounts: 'Accounts',
         data: 'Data',
@@ -97,7 +99,6 @@ export default {
         unread: 'Unread only',
         read: 'Read only',
         deleteTitle: 'Delete Settings',
-        deleteDescription: 'Delete method: Move to Trash (fixed). A confirmation dialog is shown before bulk deletion.',
         excludeImportant: 'Exclude important emails',
         excludeStarred: 'Exclude starred emails',
         ollamaTitle: 'Ollama Settings',
@@ -109,6 +110,24 @@ export default {
         testConnection: 'Test connection',
         connected: 'Connected',
         connectionFailed: 'Connection failed',
+        aiJudgmentTitle: 'AI Judgment Settings',
+        allowedLanguages: 'Expected languages',
+        allowedLanguagesHelp:
+            'Emails in languages not selected here are more likely to be flagged as spam. Select "All" to disable language-based filtering.',
+        langAll: 'All (no language filter)',
+        langJa: 'Japanese',
+        langEn: 'English',
+        langZh: 'Chinese',
+        langKo: 'Korean',
+        langEs: 'Spanish',
+        langFr: 'French',
+        langDe: 'German',
+        langPt: 'Portuguese',
+        langRu: 'Russian',
+        langAr: 'Arabic',
+        langIt: 'Italian',
+        langTh: 'Thai',
+        langVi: 'Vietnamese',
         gcpTitle: 'GCP API Settings',
         importGcpJson: 'Import JSON',
         gcpConfigured: 'Configured',

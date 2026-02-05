@@ -30,6 +30,8 @@ function ScoreRange({ range }: { range: [number, number] }) {
     );
 }
 
+const noWrap = { whiteSpace: 'nowrap' } as const;
+
 export default function FromGroupTable() {
     const { t } = useTranslation();
     const { activeAccountId } = useAccountStore();
@@ -79,8 +81,8 @@ export default function FromGroupTable() {
                     sx={{ width: 300 }}
                 />
             </Box>
-            <TableContainer sx={{ flexGrow: 1 }}>
-                <Table stickyHeader size="small">
+            <TableContainer sx={{ flexGrow: 1, overflowX: 'auto' }}>
+                <Table stickyHeader size="small" sx={{ minWidth: 800 }}>
                     <TableHead>
                         <TableRow>
                             <TableCell padding="checkbox">
@@ -93,7 +95,7 @@ export default function FromGroupTable() {
                                     onChange={(_e, checked) => selectAllFrom(checked)}
                                 />
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={noWrap}>
                                 <TableSortLabel
                                     active={sortKey === 'name'}
                                     direction={sortKey === 'name' ? (sortAsc ? 'asc' : 'desc') : 'asc'}
@@ -102,7 +104,7 @@ export default function FromGroupTable() {
                                     From
                                 </TableSortLabel>
                             </TableCell>
-                            <TableCell align="right" sx={{ width: 80 }}>
+                            <TableCell align="right" sx={{ ...noWrap, width: 80 }}>
                                 <TableSortLabel
                                     active={sortKey === 'count'}
                                     direction={sortKey === 'count' ? (sortAsc ? 'asc' : 'desc') : 'asc'}
@@ -111,7 +113,7 @@ export default function FromGroupTable() {
                                     {t('list.count')}
                                 </TableSortLabel>
                             </TableCell>
-                            <TableCell align="right" sx={{ width: 100 }}>
+                            <TableCell align="right" sx={{ ...noWrap, width: 100 }}>
                                 <TableSortLabel
                                     active={sortKey === 'frequency'}
                                     direction={sortKey === 'frequency' ? (sortAsc ? 'asc' : 'desc') : 'asc'}
@@ -120,12 +122,12 @@ export default function FromGroupTable() {
                                     {t('list.frequency')}
                                 </TableSortLabel>
                             </TableCell>
-                            <TableCell>{t('list.subject')}</TableCell>
-                            <TableCell align="center" sx={{ width: 70 }}>
-                                M
+                            <TableCell sx={noWrap}>{t('list.subject')}</TableCell>
+                            <TableCell align="center" sx={{ ...noWrap, width: 70 }}>
+                                {t('list.marketing')}
                             </TableCell>
-                            <TableCell align="center" sx={{ width: 70 }}>
-                                S
+                            <TableCell align="center" sx={{ ...noWrap, width: 70 }}>
+                                {t('list.spam')}
                             </TableCell>
                             <TableCell sx={{ width: 48 }} />
                         </TableRow>
@@ -163,16 +165,16 @@ export default function FromGroupTable() {
                                         ))}
                                     </Box>
                                 </TableCell>
-                                <TableCell align="right">
+                                <TableCell align="right" sx={noWrap}>
                                     <Typography variant="body2">{group.count}</Typography>
                                 </TableCell>
-                                <TableCell align="right">
+                                <TableCell align="right" sx={noWrap}>
                                     <Typography variant="body2">
                                         {group.frequency}
                                         {t('list.perDay')}
                                     </Typography>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={noWrap}>
                                     <Typography
                                         variant="body2"
                                         sx={{
@@ -185,10 +187,10 @@ export default function FromGroupTable() {
                                         {group.latestSubject}
                                     </Typography>
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align="center" sx={noWrap}>
                                     <ScoreRange range={group.aiScoreRange.marketing} />
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align="center" sx={noWrap}>
                                     <ScoreRange range={group.aiScoreRange.spam} />
                                 </TableCell>
                                 <TableCell>
