@@ -34,6 +34,7 @@ const CH = {
     ACCOUNTS_GET_CONNECTION_STATUS: 'accounts:getConnectionStatus',
     GMAIL_FETCH_EMAILS: 'gmail:fetchEmails',
     GMAIL_GET_EMAIL_BODY: 'gmail:getEmailBody',
+    GMAIL_GET_EMAIL_BODY_PARTS: 'gmail:getEmailBodyParts',
     GMAIL_GET_EMAIL_RAW: 'gmail:getEmailRaw',
     GMAIL_BULK_DELETE_BY_FROM: 'gmail:bulkDeleteByFrom',
     GMAIL_GET_CACHED_RESULT: 'gmail:getCachedResult',
@@ -45,7 +46,6 @@ const CH = {
     DATA_CLEAR_ALL_CACHE: 'data:clearAllCache',
     DATA_EXPORT_SETTINGS: 'data:exportSettings',
     DATA_IMPORT_SETTINGS: 'data:importSettings',
-    DATA_RESET_ALL: 'data:resetAll',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
     EVENT_FETCH_PROGRESS: 'event:fetchProgress',
@@ -95,6 +95,8 @@ const api: IpcApi = {
     // Gmail
     fetchEmails: options => ipcRenderer.invoke(CH.GMAIL_FETCH_EMAILS, options),
     getEmailBody: (accountId, messageId) => ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_BODY, accountId, messageId),
+    getEmailBodyParts: (accountId, messageId) =>
+        ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_BODY_PARTS, accountId, messageId),
     getEmailRaw: (accountId, messageId) => ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_RAW, accountId, messageId),
     bulkDeleteByFrom: (accountId, fromAddresses) =>
         ipcRenderer.invoke(CH.GMAIL_BULK_DELETE_BY_FROM, accountId, fromAddresses),
@@ -103,7 +105,8 @@ const api: IpcApi = {
     // Ollama
     testOllamaConnection: host => ipcRenderer.invoke(CH.OLLAMA_TEST_CONNECTION, host),
     getOllamaModels: host => ipcRenderer.invoke(CH.OLLAMA_GET_MODELS, host),
-    runAIJudgment: (accountId, messageIds, mode) => ipcRenderer.invoke(CH.OLLAMA_RUN_JUDGMENT, accountId, messageIds, mode),
+    runAIJudgment: (accountId, messageIds, mode) =>
+        ipcRenderer.invoke(CH.OLLAMA_RUN_JUDGMENT, accountId, messageIds, mode),
     cancelAIJudgment: () => ipcRenderer.invoke(CH.OLLAMA_CANCEL_JUDGMENT),
 
     // Data
@@ -111,8 +114,6 @@ const api: IpcApi = {
     clearAllCache: () => ipcRenderer.invoke(CH.DATA_CLEAR_ALL_CACHE),
     exportSettings: () => ipcRenderer.invoke(CH.DATA_EXPORT_SETTINGS),
     importSettings: json => ipcRenderer.invoke(CH.DATA_IMPORT_SETTINGS, json),
-    resetAllData: () => ipcRenderer.invoke(CH.DATA_RESET_ALL),
-
     // Detail
     openDetailWindow: data => ipcRenderer.invoke(CH.DETAIL_OPEN, data),
     getDetailData: () => ipcRenderer.invoke(CH.DETAIL_GET_DATA),

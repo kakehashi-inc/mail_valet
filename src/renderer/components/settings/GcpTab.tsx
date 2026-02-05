@@ -5,31 +5,21 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useTranslation } from 'react-i18next';
 import type { GcpSettings } from '@shared/types';
 
-export default function GcpTab() {
+interface Props {
+    settings: GcpSettings;
+    onChange: (settings: GcpSettings) => void;
+}
+
+export default function GcpTab({ settings, onChange }: Props) {
     const { t } = useTranslation();
-    const [settings, setSettings] = React.useState<GcpSettings>({
-        clientId: '',
-        clientSecret: '',
-        projectId: '',
-    });
     const [error, setError] = React.useState('');
-
-    React.useEffect(() => {
-        window.mailvalet.getGcpSettings().then(setSettings);
-    }, []);
-
-    const save = async (updated: GcpSettings) => {
-        setSettings(updated);
-        await window.mailvalet.saveGcpSettings(updated);
-    };
 
     const handleImportJson = async () => {
         setError('');
         try {
             const result = await window.mailvalet.importGcpJson();
             if (result) {
-                setSettings(result);
-                await window.mailvalet.saveGcpSettings(result);
+                onChange(result);
             }
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : String(e));
@@ -60,7 +50,7 @@ export default function GcpTab() {
                 label={t('settings.clientId')}
                 size="small"
                 value={settings.clientId}
-                onChange={e => save({ ...settings, clientId: e.target.value })}
+                onChange={(e) => onChange({ ...settings, clientId: e.target.value })}
                 fullWidth
             />
             <TextField
@@ -68,14 +58,14 @@ export default function GcpTab() {
                 size="small"
                 type="password"
                 value={settings.clientSecret}
-                onChange={e => save({ ...settings, clientSecret: e.target.value })}
+                onChange={(e) => onChange({ ...settings, clientSecret: e.target.value })}
                 fullWidth
             />
             <TextField
                 label={t('settings.projectId')}
                 size="small"
                 value={settings.projectId}
-                onChange={e => save({ ...settings, projectId: e.target.value })}
+                onChange={(e) => onChange({ ...settings, projectId: e.target.value })}
                 fullWidth
             />
         </Box>

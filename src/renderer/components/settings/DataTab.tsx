@@ -3,7 +3,6 @@ import { Box, Typography, Button, Divider, Alert } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../ConfirmDialog';
 
@@ -50,12 +49,6 @@ export default function DataTab() {
         input.click();
     };
 
-    const handleResetAll = async () => {
-        await window.mailvalet.resetAllData();
-        setStatus(t('data.resetComplete'));
-        setConfirmAction(null);
-    };
-
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Typography variant="h6">{t('settings.dataTitle')}</Typography>
@@ -99,22 +92,6 @@ export default function DataTab() {
                 </Box>
             </Box>
 
-            <Divider />
-
-            <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                    {t('data.reset')}
-                </Typography>
-                <Button
-                    variant="contained"
-                    color="error"
-                    startIcon={<RestartAltIcon />}
-                    onClick={() => setConfirmAction('resetAll')}
-                >
-                    {t('data.resetAll')}
-                </Button>
-            </Box>
-
             {status && (
                 <Alert severity="success" onClose={() => setStatus('')}>
                     {status}
@@ -135,14 +112,6 @@ export default function DataTab() {
                 onConfirm={handleClearAllCache}
                 onCancel={() => setConfirmAction(null)}
                 severity="warning"
-            />
-            <ConfirmDialog
-                open={confirmAction === 'resetAll'}
-                title={t('data.resetAll')}
-                message={t('data.confirmResetAll')}
-                onConfirm={handleResetAll}
-                onCancel={() => setConfirmAction(null)}
-                severity="error"
             />
         </Box>
     );

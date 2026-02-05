@@ -114,6 +114,7 @@ export interface EmailMessage {
     threadId: string;
     from: string;
     fromAddress: string;
+    to: string;
     subject: string;
     date: string;
     snippet: string;

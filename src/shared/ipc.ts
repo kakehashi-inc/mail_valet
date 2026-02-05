@@ -17,6 +17,7 @@ import type {
     DeleteResult,
     FetchEmailsOptions,
     DetailWindowData,
+    EmailBodyParts,
     AppState,
     FetchProgress,
     AIProgress,
@@ -25,7 +26,7 @@ import type {
 export type IpcApi = {
     // App info
     getAppInfo(): Promise<AppInfo>;
-    setTheme(theme: AppTheme): Promise<{ theme: AppTheme }>;
+    setTheme(theme: AppTheme): Promise<'light' | 'dark'>;
     setLanguage(language: AppLanguage): Promise<{ language: AppLanguage }>;
 
     // Window controls
@@ -62,9 +63,13 @@ export type IpcApi = {
     // Gmail
     fetchEmails(options: FetchEmailsOptions): Promise<SamplingResult>;
     getEmailBody(accountId: string, messageId: string): Promise<string>;
+    getEmailBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts>;
     getEmailRaw(accountId: string, messageId: string): Promise<string>;
     bulkDeleteByFrom(accountId: string, fromAddresses: string[]): Promise<DeleteResult>;
-    getCachedResult(accountId: string, mode?: FetchMode): Promise<{ result: SamplingResult; meta: SamplingMeta } | null>;
+    getCachedResult(
+        accountId: string,
+        mode?: FetchMode
+    ): Promise<{ result: SamplingResult; meta: SamplingMeta } | null>;
 
     // Ollama
     testOllamaConnection(host: string): Promise<boolean>;
@@ -77,8 +82,6 @@ export type IpcApi = {
     clearAllCache(): Promise<void>;
     exportSettings(): Promise<string>;
     importSettings(json: string): Promise<void>;
-    resetAllData(): Promise<void>;
-
     // Detail window
     openDetailWindow(data: DetailWindowData): Promise<void>;
     getDetailData(): Promise<DetailWindowData | null>;

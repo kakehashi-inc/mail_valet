@@ -1,24 +1,14 @@
-import React from 'react';
 import { Box, TextField, FormControl, InputLabel, Select, MenuItem, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { FetchSettings } from '@shared/types';
 
-export default function FetchTab() {
+interface Props {
+    settings: FetchSettings;
+    onChange: (settings: FetchSettings) => void;
+}
+
+export default function FetchTab({ settings, onChange }: Props) {
     const { t } = useTranslation();
-    const [settings, setSettings] = React.useState<FetchSettings>({
-        samplingDays: 30,
-        maxFetchCount: 1000,
-        readFilter: 'all',
-    });
-
-    React.useEffect(() => {
-        window.mailvalet.getFetchSettings().then(setSettings);
-    }, []);
-
-    const save = async (updated: FetchSettings) => {
-        setSettings(updated);
-        await window.mailvalet.saveFetchSettings(updated);
-    };
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -28,7 +18,7 @@ export default function FetchTab() {
                 type="number"
                 size="small"
                 value={settings.samplingDays}
-                onChange={e => save({ ...settings, samplingDays: Math.max(1, Number(e.target.value)) })}
+                onChange={(e) => onChange({ ...settings, samplingDays: Math.max(1, Number(e.target.value)) })}
                 sx={{ width: 250 }}
             />
             <TextField
@@ -36,7 +26,7 @@ export default function FetchTab() {
                 type="number"
                 size="small"
                 value={settings.maxFetchCount}
-                onChange={e => save({ ...settings, maxFetchCount: Math.max(1, Number(e.target.value)) })}
+                onChange={(e) => onChange({ ...settings, maxFetchCount: Math.max(1, Number(e.target.value)) })}
                 sx={{ width: 250 }}
             />
             <FormControl size="small" sx={{ width: 250 }}>
@@ -44,7 +34,9 @@ export default function FetchTab() {
                 <Select
                     value={settings.readFilter}
                     label={t('settings.readFilter')}
-                    onChange={e => save({ ...settings, readFilter: e.target.value as 'all' | 'unread' | 'read' })}
+                    onChange={(e) =>
+                        onChange({ ...settings, readFilter: e.target.value as 'all' | 'unread' | 'read' })
+                    }
                 >
                     <MenuItem value="all">{t('settings.all')}</MenuItem>
                     <MenuItem value="unread">{t('settings.unread')}</MenuItem>

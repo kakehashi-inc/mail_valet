@@ -183,12 +183,7 @@ function buildPrompt(
 // ---------------------------------------------------------------------------
 // Single email judgment
 // ---------------------------------------------------------------------------
-async function judgeEmail(
-    host: string,
-    model: string,
-    timeout: number,
-    prompt: string
-): Promise<AIJudgment> {
+async function judgeEmail(host: string, model: string, timeout: number, prompt: string): Promise<AIJudgment> {
     const timeoutMs = timeout === 0 ? 0 : timeout * 1000;
     const signal = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
 

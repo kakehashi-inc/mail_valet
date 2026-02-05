@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, FormControlLabel, Checkbox, Typography, Grid } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import type { AIJudgmentSettings } from '@shared/types';
@@ -20,31 +19,31 @@ const LANG_KEYS: Record<string, string> = {
     vi: 'settings.langVi',
 };
 
-export default function AIJudgmentTab() {
-    const { t } = useTranslation();
-    const [settings, setSettings] = React.useState<AIJudgmentSettings>({ allowedLanguages: [] });
+interface Props {
+    settings: AIJudgmentSettings;
+    onChange: (settings: AIJudgmentSettings) => void;
+}
 
-    React.useEffect(() => {
-        window.mailvalet.getAIJudgmentSettings().then(setSettings);
-    }, []);
-
-    const save = async (updated: AIJudgmentSettings) => {
-        setSettings(updated);
-        await window.mailvalet.saveAIJudgmentSettings(updated);
-    };
-
+export default function AIJudgmentTab({ settings, onChange }: Props) {
+    const { t, i18n } = useTranslation();
     const isAll = settings.allowedLanguages.length === 0;
 
     const handleAllChange = (checked: boolean) => {
         if (checked) {
-            save({ allowedLanguages: [] });
+            onChange({ allowedLanguages: [] });
+        } else {
+            const currentLang = i18n.language.slice(0, 2);
+            const lang = LANGUAGE_CODES.includes(currentLang as (typeof LANGUAGE_CODES)[number])
+                ? currentLang
+                : 'en';
+            onChange({ allowedLanguages: [lang] });
         }
     };
 
     const handleLangChange = (code: string, checked: boolean) => {
         const current = settings.allowedLanguages;
-        const updated = checked ? [...current, code] : current.filter(c => c !== code);
-        save({ allowedLanguages: updated });
+        const updated = checked ? [...current, code] : current.filter((c) => c !== code);
+        onChange({ allowedLanguages: updated });
     };
 
     return (
@@ -59,7 +58,7 @@ export default function AIJudgmentTab() {
                 label={t('settings.langAll')}
             />
             <Grid container spacing={1} sx={{ pl: 1 }}>
-                {LANGUAGE_CODES.map(code => (
+                {LANGUAGE_CODES.map((code) => (
                     <Grid size={{ xs: 6 }} key={code}>
                         <FormControlLabel
                             control={

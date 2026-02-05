@@ -86,6 +86,8 @@ async function createWindow() {
         setMainWindow(null);
         setMainWindowRef(null);
         mainWindow = null;
+        // Quit the app when the main window is closed
+        app.quit();
     });
 }
 
@@ -122,29 +124,32 @@ app.whenReady().then(async () => {
 
     ipcMain.handle(IPC_CHANNELS.APP_SET_THEME, async (_e, theme: AppTheme) => {
         nativeTheme.themeSource = theme;
-        return { theme };
+        return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
     });
 
     ipcMain.handle(IPC_CHANNELS.APP_SET_LANGUAGE, async (_e, lang: AppLanguage) => {
         return { language: lang };
     });
 
-    // Window controls
-    ipcMain.handle(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
-        mainWindow?.minimize();
+    // Window controls (operate on the calling window, not always mainWindow)
+    ipcMain.handle(IPC_CHANNELS.WINDOW_MINIMIZE, e => {
+        BrowserWindow.fromWebContents(e.sender)?.minimize();
     });
-    ipcMain.handle(IPC_CHANNELS.WINDOW_MAXIMIZE_OR_RESTORE, () => {
-        if (!mainWindow) return false;
-        if (mainWindow.isMaximized()) {
-            mainWindow.unmaximize();
+    ipcMain.handle(IPC_CHANNELS.WINDOW_MAXIMIZE_OR_RESTORE, e => {
+        const win = BrowserWindow.fromWebContents(e.sender);
+        if (!win) return false;
+        if (win.isMaximized()) {
+            win.unmaximize();
             return false;
         }
-        mainWindow.maximize();
+        win.maximize();
         return true;
     });
-    ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => mainWindow?.isMaximized() ?? false);
-    ipcMain.handle(IPC_CHANNELS.WINDOW_CLOSE, () => {
-        mainWindow?.close();
+    ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, e => {
+        return BrowserWindow.fromWebContents(e.sender)?.isMaximized() ?? false;
+    });
+    ipcMain.handle(IPC_CHANNELS.WINDOW_CLOSE, e => {
+        BrowserWindow.fromWebContents(e.sender)?.close();
     });
 
     await createWindow();

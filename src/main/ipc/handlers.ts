@@ -5,8 +5,8 @@ import * as accountManager from '../services/account-manager';
 import * as gmailService from '../services/gmail-service';
 import * as ollamaService from '../services/ollama-service';
 import * as stateManager from '../services/state-manager';
-import { deleteFile, deleteDir, ensureDirectories } from '../services/file-manager';
-import { getAppRootDir, getSamplingResultPath, getSamplingMetaPath } from '../../shared/constants';
+import { deleteDir } from '../services/file-manager';
+import { getAccountCacheDir } from '../../shared/constants';
 import type {
     GeneralSettings,
     FetchSettings,
@@ -137,6 +137,10 @@ export function registerAllIpcHandlers() {
         const gcpSettings = await settingsManager.getGcpSettings();
         return gmailService.getEmailBody(accountId, messageId, gcpSettings.clientId, gcpSettings.clientSecret);
     });
+    ipcMain.handle(IPC_CHANNELS.GMAIL_GET_EMAIL_BODY_PARTS, async (_e, accountId: string, messageId: string) => {
+        const gcpSettings = await settingsManager.getGcpSettings();
+        return gmailService.getEmailBodyParts(accountId, messageId, gcpSettings.clientId, gcpSettings.clientSecret);
+    });
     ipcMain.handle(IPC_CHANNELS.GMAIL_GET_EMAIL_RAW, async (_e, accountId: string, messageId: string) => {
         const gcpSettings = await settingsManager.getGcpSettings();
         return gmailService.getEmailRaw(accountId, messageId, gcpSettings.clientId, gcpSettings.clientSecret);
@@ -203,17 +207,11 @@ export function registerAllIpcHandlers() {
         await ollamaService.clearAICache();
         const accounts = await accountManager.getAllAccounts();
         for (const acct of accounts) {
-            await deleteFile(getSamplingResultPath(acct.id));
-            await deleteFile(getSamplingMetaPath(acct.id));
+            await deleteDir(getAccountCacheDir(acct.id));
         }
     });
     ipcMain.handle(IPC_CHANNELS.DATA_EXPORT_SETTINGS, () => settingsManager.exportAllSettings());
     ipcMain.handle(IPC_CHANNELS.DATA_IMPORT_SETTINGS, (_e, json: string) => settingsManager.importAllSettings(json));
-    ipcMain.handle(IPC_CHANNELS.DATA_RESET_ALL, async () => {
-        await deleteDir(getAppRootDir());
-        await ensureDirectories();
-    });
-
     // --- Detail window ---
     ipcMain.handle(IPC_CHANNELS.DETAIL_OPEN, async (_e, data: DetailWindowData) => {
         const existing = detailWindows.get(data.fromAddress);
@@ -227,6 +225,9 @@ export function registerAllIpcHandlers() {
             width: 800,
             height: 600,
             title: `${data.fromAddress} (${data.messages.length})`,
+            frame: false,
+            titleBarStyle: 'hidden',
+            autoHideMenuBar: true,
             webPreferences: {
                 preload: path.join(__dirname, '../../preload/index.js'),
             },

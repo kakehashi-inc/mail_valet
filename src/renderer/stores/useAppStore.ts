@@ -7,11 +7,12 @@ interface AppStoreState {
     settingsOpen: boolean;
     statusMessage: string;
     initialize: () => Promise<void>;
+    updateInfo: (partial: Partial<AppInfo>) => void;
     setSettingsOpen: (open: boolean) => void;
     setStatusMessage: (message: string) => void;
 }
 
-export const useAppStore = create<AppStoreState>(set => ({
+export const useAppStore = create<AppStoreState>((set, get) => ({
     info: null,
     isDetailView: false,
     settingsOpen: false,
@@ -22,6 +23,11 @@ export const useAppStore = create<AppStoreState>(set => ({
         const params = new URLSearchParams(window.location.search);
         const isDetailView = params.get('detail') === '1';
         set({ info, isDetailView });
+    },
+
+    updateInfo: (partial) => {
+        const current = get().info;
+        if (current) set({ info: { ...current, ...partial } });
     },
 
     setSettingsOpen: open => set({ settingsOpen: open }),

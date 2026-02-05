@@ -280,6 +280,7 @@ function getHeader(headers: any[], name: string): string {
 function parseMessage(msg: any): EmailMessage {
     const headers = msg.payload?.headers || [];
     const from = getHeader(headers, 'From');
+    const to = getHeader(headers, 'To');
     const subject = getHeader(headers, 'Subject');
     const date = getHeader(headers, 'Date');
     const labelIds = msg.labelIds || [];
@@ -288,6 +289,7 @@ function parseMessage(msg: any): EmailMessage {
         threadId: msg.threadId || '',
         from,
         fromAddress: extractFromAddress(from),
+        to,
         subject,
         date,
         snippet: msg.snippet || '',
@@ -386,7 +388,7 @@ export async function fetchEmails(
                     options.accountId,
                     clientId,
                     clientSecret,
-                    `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`
+                    `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`
                 )
             )
         );
