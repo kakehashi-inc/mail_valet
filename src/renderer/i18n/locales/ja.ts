@@ -35,16 +35,21 @@ export default {
     list: {
         count: '件数',
         frequency: '頻度',
-        subject: '代表件名',
+        subject: '件名',
+        latestSubject: '代表件名',
+        operationMode: '操作モード:',
         marketing: '宣伝',
         spam: '迷惑',
         perDay: '件/日',
         searchPlaceholder: 'From/ドメインで検索...',
+        searchPlaceholderSubject: '件名/差出人で検索...',
+        refFrom: '参考From',
         noData: 'データがありません。メールを取得してください。',
     },
 
     action: {
         aiJudge: '自動判定',
+        periodDelete: '期間で削除',
         bulkDelete: '一括削除',
     },
 
@@ -52,6 +57,11 @@ export default {
         confirmTitle: '一括削除の確認',
         confirmMessage:
             '選択した{{groups}}件の送信元のメールをすべてゴミ箱に移動しますか？サンプリング期間外のメールも含め、該当送信元の全メールが対象です。削除後、最新の状態を表示するには再取得してください。',
+        bulkConfirmMessageSubject:
+            '選択した{{groups}}件の件名のメールをすべてゴミ箱に移動しますか？サンプリング期間外のメールも含め、該当件名の全メールが対象です。削除後、最新の状態を表示するには再取得してください。',
+        periodConfirmTitle: '期間削除の確認',
+        periodConfirmMessage:
+            '選択した{{groups}}件のグループのサンプリング済みメールをゴミ箱に移動しますか？サンプリング期間内に取得されたメールのみが対象です。',
     },
 
     status: {
@@ -59,6 +69,7 @@ export default {
         loaded: 'キャッシュから復元 - {{count}}件 / {{groups}}グループ',
         deleting: '削除中...',
         aiComplete: 'AI判定が完了しました',
+        periodDeleteNoMessages: '除外条件により削除対象メールがありません',
         deleteResult: '削除完了: {{trashed}}件ゴミ箱へ移動 / {{excluded}}件除外 / {{errors}}件エラー',
     },
 

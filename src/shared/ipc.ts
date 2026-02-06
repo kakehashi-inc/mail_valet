@@ -66,6 +66,8 @@ export type IpcApi = {
     getEmailBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts>;
     getEmailRaw(accountId: string, messageId: string): Promise<string>;
     bulkDeleteByFrom(accountId: string, fromAddresses: string[]): Promise<DeleteResult>;
+    deleteByMessageIds(accountId: string, messageIds: string[]): Promise<DeleteResult>;
+    bulkDeleteBySubject(accountId: string, subjects: string[]): Promise<DeleteResult>;
     getCachedResult(
         accountId: string,
         mode?: FetchMode

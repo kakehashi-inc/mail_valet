@@ -36,15 +36,20 @@ export default {
         count: 'Count',
         frequency: 'Freq.',
         subject: 'Subject',
+        latestSubject: 'Latest Subject',
+        operationMode: 'Mode:',
         marketing: 'Promo',
         spam: 'Spam',
         perDay: '/day',
         searchPlaceholder: 'Search by From/domain...',
+        searchPlaceholderSubject: 'Search by subject/sender...',
+        refFrom: 'Ref. From',
         noData: 'No data. Please fetch emails.',
     },
 
     action: {
         aiJudge: 'AI Judge',
+        periodDelete: 'Period Delete',
         bulkDelete: 'Bulk Delete',
     },
 
@@ -52,6 +57,11 @@ export default {
         confirmTitle: 'Confirm Bulk Delete',
         confirmMessage:
             'Move all emails from the {{groups}} selected senders to trash? This includes all emails from these senders, not just those within the sampling period. To see updated results, please fetch again after deletion.',
+        bulkConfirmMessageSubject:
+            'Move all emails with the {{groups}} selected subjects to trash? This includes all emails with these subjects, not just those within the sampling period. To see updated results, please fetch again after deletion.',
+        periodConfirmTitle: 'Confirm Period Delete',
+        periodConfirmMessage:
+            'Move sampled emails from the {{groups}} selected groups to trash? Only emails collected within the sampling period are affected.',
     },
 
     status: {
@@ -59,6 +69,7 @@ export default {
         loaded: 'Restored from cache - {{count}} emails / {{groups}} groups',
         deleting: 'Deleting...',
         aiComplete: 'AI judgment completed',
+        periodDeleteNoMessages: 'No messages to delete after applying exclusion settings',
         deleteResult: 'Deleted: {{trashed}} trashed / {{excluded}} excluded / {{errors}} errors',
     },
 

@@ -16,7 +16,7 @@ export default function App() {
     const { i18n } = useTranslation();
     const { info, isDetailView, settingsOpen, setSettingsOpen, initialize } = useAppStore();
     const { activeAccountId, loadAccounts } = useAccountStore();
-    const { loadCachedResult, isFetching, fetchProgress, isJudging, aiProgress } = useEmailStore();
+    const { loadCachedResult, loadGroupMode, isFetching, fetchProgress, isJudging, aiProgress } = useEmailStore();
 
     React.useEffect(() => {
         initialize().then(() => {
@@ -32,9 +32,10 @@ export default function App() {
 
     React.useEffect(() => {
         if (activeAccountId && !isDetailView) {
+            loadGroupMode(activeAccountId);
             loadCachedResult(activeAccountId);
         }
-    }, [activeAccountId, isDetailView, loadCachedResult]);
+    }, [activeAccountId, isDetailView, loadGroupMode, loadCachedResult]);
 
     const muiTheme = React.useMemo(
         () =>

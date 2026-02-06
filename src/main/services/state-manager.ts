@@ -5,6 +5,7 @@ import { readJsonFile, writeJsonFile } from './file-manager';
 const DEFAULT_APP_STATE: AppState = {
     lastAccountId: null,
     windowBounds: null,
+    groupModes: {},
 };
 
 export async function getAppState(): Promise<AppState> {

@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Button } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import DateRangeIcon from '@mui/icons-material/DateRange';
 import { useTranslation } from 'react-i18next';
 import FetchControls from './FetchControls';
 import AIFilterBar from './AIFilterBar';
@@ -15,9 +16,18 @@ import { useAppStore } from '../stores/useAppStore';
 export default function MainScreen() {
     const { t } = useTranslation();
     const { activeAccountId } = useAccountStore();
-    const { selectedFromAddresses, samplingResult, runAIJudgment, isJudging } = useEmailStore();
+    const {
+        selectedGroupKeys,
+        samplingResult,
+        runAIJudgment,
+        isJudging,
+        groupMode,
+        getFilteredFromGroups,
+        getFilteredSubjectGroups,
+    } = useEmailStore();
     const { setStatusMessage } = useAppStore();
     const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+    const [periodDeleteDialogOpen, setPeriodDeleteDialogOpen] = React.useState(false);
     const [ollamaConfigured, setOllamaConfigured] = React.useState(false);
 
     React.useEffect(() => {
@@ -37,20 +47,33 @@ export default function MainScreen() {
         }
     };
 
-    const handleBulkDelete = async () => {
-        if (!activeAccountId || selectedFromAddresses.size === 0) return;
+    const handleBulkDelete = () => {
+        if (!activeAccountId || selectedGroupKeys.size === 0) return;
         setDeleteDialogOpen(true);
+    };
+
+    const handlePeriodDelete = () => {
+        if (!activeAccountId || selectedGroupKeys.size === 0) return;
+        setPeriodDeleteDialogOpen(true);
     };
 
     const confirmDelete = async () => {
         setDeleteDialogOpen(false);
         if (!activeAccountId) return;
 
-        const addresses = Array.from(selectedFromAddresses);
         setStatusMessage(t('status.deleting'));
 
         try {
-            const result = await window.mailvalet.bulkDeleteByFrom(activeAccountId, addresses);
+            let result;
+            if (groupMode === 'from') {
+                result = await window.mailvalet.bulkDeleteByFrom(activeAccountId, Array.from(selectedGroupKeys));
+            } else {
+                const groups = getFilteredSubjectGroups();
+                const subjects = groups
+                    .filter(g => selectedGroupKeys.has(g.subject))
+                    .map(g => g.displaySubject);
+                result = await window.mailvalet.bulkDeleteBySubject(activeAccountId, subjects);
+            }
             setStatusMessage(
                 t('status.deleteResult', {
                     trashed: result.trashed,
@@ -64,7 +87,62 @@ export default function MainScreen() {
         }
     };
 
-    const selectedCount = selectedFromAddresses.size;
+    const confirmPeriodDelete = async () => {
+        setPeriodDeleteDialogOpen(false);
+        if (!activeAccountId) return;
+
+        setStatusMessage(t('status.deleting'));
+
+        try {
+            const deleteSettings = await window.mailvalet.getDeleteSettings();
+
+            // Collect messages from selected groups
+            let selectedMessages;
+            if (groupMode === 'from') {
+                const groups = getFilteredFromGroups();
+                selectedMessages = groups
+                    .filter(g => selectedGroupKeys.has(g.fromAddress))
+                    .flatMap(g => g.messages);
+            } else {
+                const groups = getFilteredSubjectGroups();
+                selectedMessages = groups
+                    .filter(g => selectedGroupKeys.has(g.subject))
+                    .flatMap(g => g.messages);
+            }
+
+            // Apply exclusion filters
+            const filteredMessages = selectedMessages.filter(msg => {
+                if (deleteSettings.excludeImportant && msg.isImportant) return false;
+                if (deleteSettings.excludeStarred && msg.isStarred) return false;
+                return true;
+            });
+
+            if (filteredMessages.length === 0) {
+                setStatusMessage(t('status.periodDeleteNoMessages'));
+                return;
+            }
+
+            const messageIds = filteredMessages.map(msg => msg.id);
+            const excluded = selectedMessages.length - filteredMessages.length;
+            const result = await window.mailvalet.deleteByMessageIds(activeAccountId, messageIds);
+            setStatusMessage(
+                t('status.deleteResult', {
+                    trashed: result.trashed,
+                    excluded: excluded + result.excluded,
+                    errors: result.errors,
+                })
+            );
+        } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            setStatusMessage(`Delete error: ${msg}`);
+        }
+    };
+
+    const selectedCount = selectedGroupKeys.size;
+    const bulkDeleteMessage =
+        groupMode === 'from'
+            ? t('delete.confirmMessage', { groups: selectedCount })
+            : t('delete.bulkConfirmMessageSubject', { groups: selectedCount });
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
@@ -83,6 +161,16 @@ export default function MainScreen() {
                 </Button>
                 <Button
                     variant="contained"
+                    color="warning"
+                    size="small"
+                    startIcon={<DateRangeIcon />}
+                    onClick={handlePeriodDelete}
+                    disabled={!activeAccountId || selectedCount === 0}
+                >
+                    {t('action.periodDelete')} ({selectedCount})
+                </Button>
+                <Button
+                    variant="contained"
                     color="error"
                     size="small"
                     startIcon={<DeleteSweepIcon />}
@@ -96,10 +184,18 @@ export default function MainScreen() {
             <ConfirmDialog
                 open={deleteDialogOpen}
                 title={t('delete.confirmTitle')}
-                message={t('delete.confirmMessage', { groups: selectedCount })}
+                message={bulkDeleteMessage}
                 onConfirm={confirmDelete}
                 onCancel={() => setDeleteDialogOpen(false)}
                 severity="error"
+            />
+            <ConfirmDialog
+                open={periodDeleteDialogOpen}
+                title={t('delete.periodConfirmTitle')}
+                message={t('delete.periodConfirmMessage', { groups: selectedCount })}
+                onConfirm={confirmPeriodDelete}
+                onCancel={() => setPeriodDeleteDialogOpen(false)}
+                severity="warning"
             />
         </Box>
     );

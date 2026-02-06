@@ -164,6 +164,42 @@ export function registerAllIpcHandlers() {
             );
         }
     );
+    ipcMain.handle(
+        IPC_CHANNELS.GMAIL_DELETE_BY_MESSAGE_IDS,
+        async (_e, accountId: string, messageIds: string[]): Promise<DeleteResult> => {
+            const gcpSettings = await settingsManager.getGcpSettings();
+            return gmailService.trashByMessageIds(
+                accountId,
+                messageIds,
+                gcpSettings.clientId,
+                gcpSettings.clientSecret,
+                progress => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send(IPC_CHANNELS.EVENT_FETCH_PROGRESS, progress);
+                    }
+                }
+            );
+        }
+    );
+    ipcMain.handle(
+        IPC_CHANNELS.GMAIL_BULK_DELETE_BY_SUBJECT,
+        async (_e, accountId: string, subjects: string[]): Promise<DeleteResult> => {
+            const gcpSettings = await settingsManager.getGcpSettings();
+            const deleteSettings = await settingsManager.getDeleteSettings();
+            return gmailService.searchAndTrashBySubject(
+                accountId,
+                subjects,
+                deleteSettings,
+                gcpSettings.clientId,
+                gcpSettings.clientSecret,
+                progress => {
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send(IPC_CHANNELS.EVENT_FETCH_PROGRESS, progress);
+                    }
+                }
+            );
+        }
+    );
     ipcMain.handle(IPC_CHANNELS.GMAIL_GET_CACHED_RESULT, (_e, accountId: string, mode?: string) =>
         gmailService.getCachedResult(accountId, (mode as 'days' | 'range') || 'days')
     );

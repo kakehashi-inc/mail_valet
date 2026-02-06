@@ -4,9 +4,12 @@ import type {
     SamplingMeta,
     FetchMode,
     FromGroup,
+    SubjectGroup,
+    GroupMode,
     FetchProgress,
     AIProgress,
     AIJudgment,
+    EmailMessage,
 } from '@shared/types';
 
 type SortKey = 'count' | 'frequency' | 'name' | 'date';
@@ -15,8 +18,10 @@ interface EmailStoreState {
     samplingResult: SamplingResult | null;
     samplingMeta: SamplingMeta | null;
     fetchMode: FetchMode;
+    groupMode: GroupMode;
     fromGroups: FromGroup[];
-    selectedFromAddresses: Set<string>;
+    subjectGroups: SubjectGroup[];
+    selectedGroupKeys: Set<string>;
     sortKey: SortKey;
     sortAsc: boolean;
     searchQuery: string;
@@ -28,18 +33,21 @@ interface EmailStoreState {
     isJudging: boolean;
 
     setFetchMode: (mode: FetchMode) => void;
+    setGroupMode: (mode: GroupMode, accountId?: string) => void;
+    loadGroupMode: (accountId: string) => Promise<void>;
     loadCachedResult: (accountId: string, mode?: FetchMode) => Promise<void>;
     fetchEmails: (accountId: string, startDate?: string, endDate?: string, useDays?: boolean) => Promise<void>;
     setSortKey: (key: SortKey) => void;
     setSearchQuery: (query: string) => void;
     setAIFilterMarketing: (range: [number, number]) => void;
     setAIFilterSpam: (range: [number, number]) => void;
-    toggleFromSelection: (fromAddress: string) => void;
-    selectAllFrom: (select: boolean) => void;
+    toggleGroupSelection: (key: string) => void;
+    selectAllGroups: (select: boolean) => void;
     runAIJudgment: (accountId: string) => Promise<void>;
     cancelAIJudgment: () => Promise<void>;
     updateAIScores: (judgments: Map<string, AIJudgment>) => void;
-    getFilteredGroups: () => FromGroup[];
+    getFilteredFromGroups: () => FromGroup[];
+    getFilteredSubjectGroups: () => SubjectGroup[];
     clear: () => void;
 }
 
@@ -66,6 +74,29 @@ function applySort(groups: FromGroup[], key: SortKey, asc: boolean): FromGroup[]
     return sorted;
 }
 
+function applySortSubject(groups: SubjectGroup[], key: SortKey, asc: boolean): SubjectGroup[] {
+    const sorted = [...groups];
+    sorted.sort((a, b) => {
+        let cmp = 0;
+        switch (key) {
+            case 'count':
+                cmp = a.count - b.count;
+                break;
+            case 'frequency':
+                cmp = a.frequency - b.frequency;
+                break;
+            case 'name':
+                cmp = a.subject.localeCompare(b.subject);
+                break;
+            case 'date':
+                cmp = new Date(a.latestDate).getTime() - new Date(b.latestDate).getTime();
+                break;
+        }
+        return asc ? cmp : -cmp;
+    });
+    return sorted;
+}
+
 function recalcAIScoreRange(group: FromGroup): FromGroup {
     const marketingScores = group.messages.filter(m => m.aiJudgment).map(m => m.aiJudgment!.marketing);
     const spamScores = group.messages.filter(m => m.aiJudgment).map(m => m.aiJudgment!.spam);
@@ -79,12 +110,64 @@ function recalcAIScoreRange(group: FromGroup): FromGroup {
     };
 }
 
+function buildSubjectGroupsFromMessages(messages: EmailMessage[], periodDays: number): SubjectGroup[] {
+    const groups = new Map<string, EmailMessage[]>();
+    for (const msg of messages) {
+        const key = msg.subject.toLowerCase().trim() || '(no subject)';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(msg);
+    }
+
+    return Array.from(groups.entries()).map(([key, msgs]) => {
+        const addrSet = new Set<string>();
+        msgs.forEach(m => addrSet.add(m.fromAddress));
+        const fromAddresses = Array.from(addrSet);
+        const sorted = [...msgs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const otherCount = fromAddresses.length - 1;
+        const fromSummary = otherCount > 0 ? `${fromAddresses[0]} 他${otherCount}件` : fromAddresses[0] || '';
+
+        const marketingScores = msgs.filter(m => m.aiJudgment).map(m => m.aiJudgment!.marketing);
+        const spamScores = msgs.filter(m => m.aiJudgment).map(m => m.aiJudgment!.spam);
+
+        return {
+            subject: key,
+            displaySubject: sorted[0]?.subject || key,
+            fromSummary,
+            fromAddresses,
+            count: msgs.length,
+            frequency: periodDays > 0 ? Math.round((msgs.length / periodDays) * 10) / 10 : msgs.length,
+            latestDate: sorted[0]?.date || '',
+            messages: sorted,
+            aiScoreRange: {
+                marketing:
+                    marketingScores.length > 0
+                        ? ([Math.min(...marketingScores), Math.max(...marketingScores)] as [number, number])
+                        : ([-1, -1] as [number, number]),
+                spam:
+                    spamScores.length > 0
+                        ? ([Math.min(...spamScores), Math.max(...spamScores)] as [number, number])
+                        : ([-1, -1] as [number, number]),
+            },
+        };
+    });
+}
+
+function computePeriodDays(result: SamplingResult): number {
+    return Math.max(
+        1,
+        Math.round((new Date(result.periodEnd).getTime() - new Date(result.periodStart).getTime()) / 86400000)
+    );
+}
+
 export const useEmailStore = create<EmailStoreState>((set, get) => ({
     samplingResult: null,
     samplingMeta: null,
     fetchMode: 'days',
+    groupMode: 'from',
     fromGroups: [],
-    selectedFromAddresses: new Set(),
+    subjectGroups: [],
+    selectedGroupKeys: new Set(),
     sortKey: 'count',
     sortAsc: false,
     searchQuery: '',
@@ -97,19 +180,44 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
 
     setFetchMode: mode => set({ fetchMode: mode }),
 
+    setGroupMode: (mode, accountId) => {
+        set({ groupMode: mode, selectedGroupKeys: new Set() });
+        if (accountId) {
+            window.mailvalet.getAppState().then(state => {
+                const groupModes = { ...(state.groupModes || {}), [accountId]: mode };
+                window.mailvalet.saveAppState({ groupModes });
+            });
+        }
+    },
+
+    loadGroupMode: async accountId => {
+        const state = await window.mailvalet.getAppState();
+        const mode = state.groupModes?.[accountId] || 'from';
+        set({ groupMode: mode, selectedGroupKeys: new Set() });
+    },
+
     loadCachedResult: async (accountId, mode) => {
         const m = mode ?? get().fetchMode;
         const cached = await window.mailvalet.getCachedResult(accountId, m);
         if (cached) {
             const groups = cached.result.fromGroups.map(recalcAIScoreRange);
+            const periodDays = computePeriodDays(cached.result);
+            const subjGroups = buildSubjectGroupsFromMessages(cached.result.messages, periodDays);
             set({
                 samplingResult: cached.result,
                 samplingMeta: cached.meta,
                 fromGroups: applySort(groups, get().sortKey, get().sortAsc),
-                selectedFromAddresses: new Set(),
+                subjectGroups: applySortSubject(subjGroups, get().sortKey, get().sortAsc),
+                selectedGroupKeys: new Set(),
             });
         } else {
-            set({ samplingResult: null, samplingMeta: null, fromGroups: [], selectedFromAddresses: new Set() });
+            set({
+                samplingResult: null,
+                samplingMeta: null,
+                fromGroups: [],
+                subjectGroups: [],
+                selectedGroupKeys: new Set(),
+            });
         }
     },
 
@@ -122,10 +230,13 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
         try {
             const result = await window.mailvalet.fetchEmails({ accountId, startDate, endDate, useDays });
             const groups = result.fromGroups.map(recalcAIScoreRange);
+            const periodDays = computePeriodDays(result);
+            const subjGroups = buildSubjectGroupsFromMessages(result.messages, periodDays);
             set({
                 samplingResult: result,
                 fromGroups: applySort(groups, get().sortKey, get().sortAsc),
-                selectedFromAddresses: new Set(),
+                subjectGroups: applySortSubject(subjGroups, get().sortKey, get().sortAsc),
+                selectedGroupKeys: new Set(),
                 isFetching: false,
                 fetchProgress: null,
             });
@@ -141,28 +252,39 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     },
 
     setSortKey: key => {
-        const { sortKey, sortAsc, fromGroups } = get();
+        const { sortKey, sortAsc, fromGroups, subjectGroups } = get();
         const newAsc = sortKey === key ? !sortAsc : false;
-        set({ sortKey: key, sortAsc: newAsc, fromGroups: applySort(fromGroups, key, newAsc) });
+        set({
+            sortKey: key,
+            sortAsc: newAsc,
+            fromGroups: applySort(fromGroups, key, newAsc),
+            subjectGroups: applySortSubject(subjectGroups, key, newAsc),
+        });
     },
 
     setSearchQuery: query => set({ searchQuery: query }),
     setAIFilterMarketing: range => set({ aiFilterMarketing: range }),
     setAIFilterSpam: range => set({ aiFilterSpam: range }),
 
-    toggleFromSelection: fromAddress => {
-        const selected = new Set(get().selectedFromAddresses);
-        if (selected.has(fromAddress)) selected.delete(fromAddress);
-        else selected.add(fromAddress);
-        set({ selectedFromAddresses: selected });
+    toggleGroupSelection: key => {
+        const selected = new Set(get().selectedGroupKeys);
+        if (selected.has(key)) selected.delete(key);
+        else selected.add(key);
+        set({ selectedGroupKeys: selected });
     },
 
-    selectAllFrom: select => {
+    selectAllGroups: select => {
         if (select) {
-            const filtered = get().getFilteredGroups();
-            set({ selectedFromAddresses: new Set(filtered.map(g => g.fromAddress)) });
+            const { groupMode } = get();
+            if (groupMode === 'from') {
+                const filtered = get().getFilteredFromGroups();
+                set({ selectedGroupKeys: new Set(filtered.map(g => g.fromAddress)) });
+            } else {
+                const filtered = get().getFilteredSubjectGroups();
+                set({ selectedGroupKeys: new Set(filtered.map(g => g.subject)) });
+            }
         } else {
-            set({ selectedFromAddresses: new Set() });
+            set({ selectedGroupKeys: new Set() });
         }
     },
 
@@ -190,7 +312,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     },
 
     updateAIScores: judgments => {
-        const { fromGroups } = get();
+        const { fromGroups, samplingResult } = get();
         const updated = fromGroups.map(group => {
             const updatedMessages = group.messages.map(msg => {
                 const judgment = judgments.get(msg.id);
@@ -199,9 +321,20 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
             return recalcAIScoreRange({ ...group, messages: updatedMessages });
         });
         set({ fromGroups: updated });
+
+        // Also update subject groups
+        if (samplingResult) {
+            const periodDays = computePeriodDays(samplingResult);
+            const allMessages = samplingResult.messages.map(msg => {
+                const judgment = judgments.get(msg.id);
+                return judgment ? { ...msg, aiJudgment: judgment } : msg;
+            });
+            const subjGroups = buildSubjectGroupsFromMessages(allMessages, periodDays);
+            set({ subjectGroups: applySortSubject(subjGroups, get().sortKey, get().sortAsc) });
+        }
     },
 
-    getFilteredGroups: () => {
+    getFilteredFromGroups: () => {
         const { fromGroups, searchQuery, aiFilterMarketing, aiFilterSpam } = get();
         return fromGroups.filter(g => {
             // Text filter
@@ -226,12 +359,38 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
         });
     },
 
+    getFilteredSubjectGroups: () => {
+        const { subjectGroups, searchQuery, aiFilterMarketing, aiFilterSpam } = get();
+        return subjectGroups.filter(g => {
+            // Text filter
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const matchSubject = g.subject.includes(q);
+                const matchFrom = g.fromSummary.toLowerCase().includes(q);
+                if (!matchSubject && !matchFrom) return false;
+            }
+            // AI filter
+            if (g.aiScoreRange.marketing[0] >= 0) {
+                if (
+                    g.aiScoreRange.marketing[1] < aiFilterMarketing[0] ||
+                    g.aiScoreRange.marketing[0] > aiFilterMarketing[1]
+                )
+                    return false;
+            }
+            if (g.aiScoreRange.spam[0] >= 0) {
+                if (g.aiScoreRange.spam[1] < aiFilterSpam[0] || g.aiScoreRange.spam[0] > aiFilterSpam[1]) return false;
+            }
+            return true;
+        });
+    },
+
     clear: () =>
         set({
             samplingResult: null,
             samplingMeta: null,
             fromGroups: [],
-            selectedFromAddresses: new Set(),
+            subjectGroups: [],
+            selectedGroupKeys: new Set(),
             fetchProgress: null,
             aiProgress: null,
         }),

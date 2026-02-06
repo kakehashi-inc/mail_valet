@@ -179,6 +179,8 @@ export const IPC_CHANNELS = {
     GMAIL_GET_EMAIL_BODY_PARTS: 'gmail:getEmailBodyParts',
     GMAIL_GET_EMAIL_RAW: 'gmail:getEmailRaw',
     GMAIL_BULK_DELETE_BY_FROM: 'gmail:bulkDeleteByFrom',
+    GMAIL_DELETE_BY_MESSAGE_IDS: 'gmail:deleteByMessageIds',
+    GMAIL_BULK_DELETE_BY_SUBJECT: 'gmail:bulkDeleteBySubject',
     GMAIL_GET_CACHED_RESULT: 'gmail:getCachedResult',
     OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
     OLLAMA_GET_MODELS: 'ollama:getModels',

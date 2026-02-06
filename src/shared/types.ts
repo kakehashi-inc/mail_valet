@@ -26,6 +26,9 @@ export type GeneralSettings = {
 
 export type ReadFilter = 'all' | 'unread' | 'read';
 
+// グルーピングモード
+export type GroupMode = 'from' | 'subject';
+
 export interface FetchSettings {
     samplingDays: number;
     maxFetchCount: number;
@@ -140,6 +143,21 @@ export interface FromGroup {
     };
 }
 
+export interface SubjectGroup {
+    subject: string;
+    displaySubject: string;
+    fromSummary: string;
+    fromAddresses: string[];
+    count: number;
+    frequency: number;
+    latestDate: string;
+    messages: EmailMessage[];
+    aiScoreRange: {
+        marketing: [number, number];
+        spam: [number, number];
+    };
+}
+
 export interface SamplingResult {
     messages: EmailMessage[];
     fromGroups: FromGroup[];
@@ -187,6 +205,7 @@ export interface WindowBounds {
 export interface AppState {
     lastAccountId: string | null;
     windowBounds: WindowBounds | null;
+    groupModes: Record<string, GroupMode>;
 }
 
 // ---------------------------------------------------------------------------

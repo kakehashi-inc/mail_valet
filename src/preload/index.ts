@@ -37,6 +37,8 @@ const CH = {
     GMAIL_GET_EMAIL_BODY_PARTS: 'gmail:getEmailBodyParts',
     GMAIL_GET_EMAIL_RAW: 'gmail:getEmailRaw',
     GMAIL_BULK_DELETE_BY_FROM: 'gmail:bulkDeleteByFrom',
+    GMAIL_DELETE_BY_MESSAGE_IDS: 'gmail:deleteByMessageIds',
+    GMAIL_BULK_DELETE_BY_SUBJECT: 'gmail:bulkDeleteBySubject',
     GMAIL_GET_CACHED_RESULT: 'gmail:getCachedResult',
     OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
     OLLAMA_GET_MODELS: 'ollama:getModels',
@@ -100,6 +102,10 @@ const api: IpcApi = {
     getEmailRaw: (accountId, messageId) => ipcRenderer.invoke(CH.GMAIL_GET_EMAIL_RAW, accountId, messageId),
     bulkDeleteByFrom: (accountId, fromAddresses) =>
         ipcRenderer.invoke(CH.GMAIL_BULK_DELETE_BY_FROM, accountId, fromAddresses),
+    deleteByMessageIds: (accountId, messageIds) =>
+        ipcRenderer.invoke(CH.GMAIL_DELETE_BY_MESSAGE_IDS, accountId, messageIds),
+    bulkDeleteBySubject: (accountId, subjects) =>
+        ipcRenderer.invoke(CH.GMAIL_BULK_DELETE_BY_SUBJECT, accountId, subjects),
     getCachedResult: (accountId, mode) => ipcRenderer.invoke(CH.GMAIL_GET_CACHED_RESULT, accountId, mode),
 
     // Ollama
