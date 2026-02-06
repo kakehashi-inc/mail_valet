@@ -7,14 +7,15 @@ Mail Valet is a desktop application that manages multiple Gmail accounts in one 
 ### Key Features
 
 - **Multi-Gmail Account Management**: Secure multi-account support via OAuth2 authentication
-- **Email Sampling**: Fetch emails by day count or date range, grouped by sender (From)
+- **Email Sampling**: Fetch emails by day count or date range, grouped by sender (From) or subject
 - **Ollama AI Classification**: Automatic marketing/spam scoring (0-10 scale) using a local AI
-- **Bulk Deletion**: Move unwanted sender groups to trash in bulk (with options to exclude important/starred emails)
-- **Detail View**: View email list, body, and raw data per sender group in a modeless window
+- **Bulk Deletion**: Move unwanted groups to trash in bulk (with options to exclude important/starred emails)
+- **Period Deletion**: Delete only the sampled emails from selected groups
+- **Detail View**: View email list, body, and raw data per group in a modeless window
 - **Label Management**: Gmail label tree view with selectable fetch targets
 - **Multilingual**: Japanese / English (auto-detected from OS language)
 - **Themes**: Light / Dark mode (auto-detected from OS theme)
-- **Data Management**: Settings export/import, cache clear, full data reset
+- **Data Management**: Settings export/import, AI judgment cache / all cache clear
 
 ### Tech Stack
 
