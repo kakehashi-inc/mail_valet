@@ -37,6 +37,7 @@ interface EmailStoreState {
     loadGroupMode: (accountId: string) => Promise<void>;
     loadCachedResult: (accountId: string, mode?: FetchMode) => Promise<void>;
     fetchEmails: (accountId: string, startDate?: string, endDate?: string, useDays?: boolean) => Promise<void>;
+    cancelFetch: () => Promise<void>;
     setSortKey: (key: SortKey) => void;
     setSearchQuery: (query: string) => void;
     setAIFilterMarketing: (range: [number, number]) => void;
@@ -245,10 +246,17 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
             if (cached) set({ samplingMeta: cached.meta });
         } catch (e) {
             set({ isFetching: false, fetchProgress: null });
+            // If cancelled, silently absorb
+            if (e instanceof Error && e.message === 'Fetch cancelled') return;
             throw e;
         } finally {
             unsubscribe();
         }
+    },
+
+    cancelFetch: async () => {
+        await window.mailvalet.cancelFetch();
+        set({ isFetching: false, fetchProgress: null });
     },
 
     setSortKey: key => {

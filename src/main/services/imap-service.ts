@@ -33,11 +33,26 @@ function createImapClient(settings: ImapConnectionSettings): ImapFlow {
                   : undefined,
         logger: {
             debug: () => {},
-            info: (msg: any) => console.debug('[IMAP-PROTO]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
-            warn: (msg: any) => console.warn('[IMAP-PROTO]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
-            error: (msg: any) => console.error('[IMAP-PROTO]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+            info: (msg: any) => console.debug('[ImapFlow]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+            warn: (msg: any) => console.warn('[ImapFlow]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+            error: (msg: any) => console.error('[ImapFlow]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
         },
     });
+}
+
+// --- Fetch cancel ---
+let fetchCancelRequested = false;
+let fetchClient: ImapFlow | null = null;
+
+export function cancelFetch(): void {
+    fetchCancelRequested = true;
+    if (fetchClient) {
+        try {
+            fetchClient.close();
+        } catch {
+            // ignore
+        }
+    }
 }
 
 // --- Connection check ---
@@ -143,15 +158,20 @@ export async function fetchEmails(
     );
     onProgress?.({ current: 0, total: 0, message: 'Connecting to IMAP server...' });
 
+    fetchCancelRequested = false;
     const client = createImapClient(settings);
+    fetchClient = client;
     try {
         await client.connect();
         console.debug(`[IMAP] Connected to ${settings.host}:${settings.port}`);
         const messages: EmailMessage[] = [];
+        const bodyPartsMap: Record<string, EmailBodyParts> = {};
+        const rawBodiesMap: Record<string, string> = {};
         const folders = selectedFolderPaths.length > 0 ? selectedFolderPaths : ['INBOX'];
         console.debug(`[IMAP] Target folders: ${folders.join(', ')}`);
 
         for (const folderPath of folders) {
+            if (fetchCancelRequested) break;
             if (messages.length >= maxResults) break;
             try {
                 const lock = await client.getMailboxLock(folderPath);
@@ -185,39 +205,88 @@ export async function fetchEmails(
                         total: messages.length + targetUids.length,
                         message: `Fetching from ${folderPath}...`,
                     });
+
+                    // Pass 1: fetch envelope + flags + bodyStructure
+                    const fetched: Array<{
+                        uid: number;
+                        envelope: any;
+                        flags: Set<string>;
+                        bodyStructure: any;
+                    }> = [];
                     for await (const msg of client.fetch(
                         targetUids,
-                        { envelope: true, flags: true, uid: true },
+                        { envelope: true, flags: true, uid: true, bodyStructure: true },
                         { uid: true }
                     )) {
-                        if (messages.length >= maxResults) break;
+                        if (messages.length + fetched.length >= maxResults) break;
                         const env = msg.envelope;
-                        // Client-side date filter when IMAP SEARCH date criteria unavailable
                         if (clientSideDateFilter && env?.date) {
                             const msgDate = new Date(env.date);
                             if (msgDate < startDate || msgDate >= endDatePlusOne) continue;
                         }
-                        const fromObj = env?.from?.[0];
-                        const toObj = env?.to?.[0];
+                        fetched.push({
+                            uid: msg.uid,
+                            envelope: env,
+                            flags: msg.flags || new Set(),
+                            bodyStructure: msg.bodyStructure,
+                        });
+                    }
+
+                    // Pass 2: build messages + download body parts + raw (single connection)
+                    for (let fi = 0; fi < fetched.length && !fetchCancelRequested; fi++) {
+                        const f = fetched[fi];
+                        const fromObj = f.envelope?.from?.[0];
+                        const toObj = f.envelope?.to?.[0];
                         const from = formatFromAddress(fromObj?.name, fromObj?.address);
-                        const flags = msg.flags ? Array.from(msg.flags) : [];
+                        const flags = Array.from(f.flags);
+                        const msgId = `${folderPath}:${f.uid}`;
                         messages.push({
-                            id: `${folderPath}:${msg.uid}`,
+                            id: msgId,
                             threadId: '',
                             from,
                             fromAddress: extractFromAddress(from),
                             to: formatFromAddress(toObj?.name, toObj?.address),
-                            subject: env?.subject || '',
-                            date: env?.date ? env.date.toISOString() : '',
+                            subject: f.envelope?.subject || '',
+                            date: f.envelope?.date ? f.envelope.date.toISOString() : '',
                             snippet: '',
                             labelIds: [folderPath],
                             isImportant: flags.includes('\\Flagged'),
                             isStarred: flags.includes('\\Flagged'),
                         });
-                        if (messages.length % 50 === 0) {
+
+                        // Download body parts
+                        if (f.bodyStructure) {
+                            try {
+                                const structParts = flattenStructure(f.bodyStructure);
+                                const bp: EmailBodyParts = { plain: '', html: '' };
+                                const plainPart = structParts.find(p => p.type === 'text/plain');
+                                const htmlPart = structParts.find(p => p.type === 'text/html');
+                                if (plainPart?.part) {
+                                    const dl = await client.download(String(f.uid), plainPart.part, { uid: true });
+                                    if (dl) bp.plain = await streamToString(dl.content);
+                                }
+                                if (htmlPart?.part) {
+                                    const dl = await client.download(String(f.uid), htmlPart.part, { uid: true });
+                                    if (dl) bp.html = await streamToString(dl.content);
+                                }
+                                bodyPartsMap[msgId] = bp;
+                            } catch (e) {
+                                console.warn(`[IMAP] Failed to fetch body for ${msgId}:`, e);
+                            }
+                        }
+
+                        // Download raw source
+                        try {
+                            const dl = await client.download(String(f.uid), undefined, { uid: true });
+                            if (dl) rawBodiesMap[msgId] = await streamToString(dl.content);
+                        } catch (e) {
+                            console.warn(`[IMAP] Failed to fetch raw for ${msgId}:`, e);
+                        }
+
+                        if ((fi + 1) % 50 === 0) {
                             onProgress?.({
                                 current: messages.length,
-                                total: messages.length,
+                                total: messages.length + fetched.length - fi - 1,
                                 message: `Fetched ${messages.length} messages...`,
                             });
                         }
@@ -230,7 +299,7 @@ export async function fetchEmails(
             }
         }
 
-        console.info(`[IMAP] Fetch complete: ${messages.length} messages`);
+        console.info(`[IMAP] Fetch complete: ${messages.length} messages, ${Object.keys(bodyPartsMap).length} bodies`);
         await client.logout();
 
         const periodDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
@@ -242,6 +311,8 @@ export async function fetchEmails(
             periodStart: startDate.toISOString(),
             periodEnd: endDate.toISOString(),
             totalCount: messages.length,
+            bodyParts: bodyPartsMap,
+            rawBodies: rawBodiesMap,
         };
 
         const mode: FetchMode = options.useDays ? 'days' : 'range';
@@ -259,9 +330,14 @@ export async function fetchEmails(
 
         return result;
     } catch (e) {
+        if (fetchCancelRequested) {
+            console.info('[IMAP] fetchEmails cancelled');
+            throw new Error('Fetch cancelled');
+        }
         console.error('[IMAP] fetchEmails failed:', e);
         throw e;
     } finally {
+        fetchClient = null;
         client.close();
     }
 }
@@ -294,84 +370,30 @@ function stripHtml(html: string): string {
         .trim();
 }
 
-// --- Get email body ---
-export async function getEmailBody(settings: ImapConnectionSettings, messageId: string): Promise<string> {
-    const { folderPath, uid } = parseImapMessageId(messageId);
-    const client = createImapClient(settings);
-    try {
-        await client.connect();
-        const lock = await client.getMailboxLock(folderPath);
-        try {
-            // Download full message source and extract text
-            const dl = await client.download(String(uid), undefined, { uid: true });
-            if (!dl) return '';
-            const raw = await streamToString(dl.content);
-            // Simple extraction: find text/plain or strip HTML
-            const plainMatch = raw.match(
-                /Content-Type:\s*text\/plain[^\r\n]*\r?\n(?:Content-[^\r\n]*\r?\n)*\r?\n([\s\S]*?)(?:\r?\n--|\r?\n\r?\n)/i
-            );
-            if (plainMatch) return plainMatch[1].trim();
-            const htmlMatch = raw.match(
-                /Content-Type:\s*text\/html[^\r\n]*\r?\n(?:Content-[^\r\n]*\r?\n)*\r?\n([\s\S]*?)(?:\r?\n--|\r?\n\r?\n)/i
-            );
-            if (htmlMatch) return stripHtml(htmlMatch[1]);
-            return raw.substring(0, 10000);
-        } finally {
-            lock.release();
-        }
-    } catch (e) {
-        console.error(`[IMAP] getEmailBody failed (${messageId}):`, e);
-        throw e;
-    } finally {
-        try {
-            await client.logout();
-        } catch {
-            // ignore
-        }
-        client.close();
+// --- Cached body parts lookup (searches both 'days' and 'range' sampling caches) ---
+export async function getCachedBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts | null> {
+    for (const mode of ['days', 'range'] as const) {
+        const cached = await getCachedResult(accountId, mode);
+        if (cached?.result.bodyParts?.[messageId]) return cached.result.bodyParts[messageId];
     }
+    return null;
 }
 
-// --- Get email body parts ---
-export async function getEmailBodyParts(settings: ImapConnectionSettings, messageId: string): Promise<EmailBodyParts> {
-    const { folderPath, uid } = parseImapMessageId(messageId);
-    const result: EmailBodyParts = { plain: '', html: '' };
-    const client = createImapClient(settings);
-    try {
-        await client.connect();
-        const lock = await client.getMailboxLock(folderPath);
-        try {
-            // Get body structure first
-            const msg = await client.fetchOne(String(uid), { bodyStructure: true }, { uid: true });
-            if (!msg || !msg.bodyStructure) return result;
-
-            const parts = flattenStructure(msg.bodyStructure);
-            const plainPart = parts.find(p => p.type === 'text/plain');
-            const htmlPart = parts.find(p => p.type === 'text/html');
-
-            if (plainPart?.part) {
-                const dl = await client.download(String(uid), plainPart.part, { uid: true });
-                if (dl) result.plain = await streamToString(dl.content);
-            }
-            if (htmlPart?.part) {
-                const dl = await client.download(String(uid), htmlPart.part, { uid: true });
-                if (dl) result.html = await streamToString(dl.content);
-            }
-        } finally {
-            lock.release();
-        }
-    } catch (e) {
-        console.error(`[IMAP] getEmailBodyParts failed (${messageId}):`, e);
-        throw e;
-    } finally {
-        try {
-            await client.logout();
-        } catch {
-            // ignore
-        }
-        client.close();
+// --- Get email body (from cache) ---
+export async function getEmailBody(accountId: string, messageId: string): Promise<string> {
+    const cached = await getCachedBodyParts(accountId, messageId);
+    if (cached) {
+        if (cached.plain) return cached.plain;
+        if (cached.html) return stripHtml(cached.html);
+        return '';
     }
-    return result;
+    return '';
+}
+
+// --- Get email body parts (from cache) ---
+export async function getEmailBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts> {
+    const cached = await getCachedBodyParts(accountId, messageId);
+    return cached || { plain: '', html: '' };
 }
 
 // --- Helper: flatten bodyStructure ---
@@ -389,30 +411,12 @@ function flattenStructure(structure: any): Array<{ type: string; part?: string }
 }
 
 // --- Get raw email ---
-export async function getEmailRaw(settings: ImapConnectionSettings, messageId: string): Promise<string> {
-    const { folderPath, uid } = parseImapMessageId(messageId);
-    const client = createImapClient(settings);
-    try {
-        await client.connect();
-        const lock = await client.getMailboxLock(folderPath);
-        try {
-            const dl = await client.download(String(uid), undefined, { uid: true });
-            if (!dl) return '';
-            return await streamToString(dl.content);
-        } finally {
-            lock.release();
-        }
-    } catch (e) {
-        console.error(`[IMAP] getEmailRaw failed (${messageId}):`, e);
-        throw e;
-    } finally {
-        try {
-            await client.logout();
-        } catch {
-            // ignore
-        }
-        client.close();
+export async function getEmailRaw(accountId: string, messageId: string): Promise<string> {
+    for (const mode of ['days', 'range'] as const) {
+        const cached = await getCachedResult(accountId, mode);
+        if (cached?.result.rawBodies?.[messageId]) return cached.result.rawBodies[messageId];
     }
+    return '';
 }
 
 // --- Bulk delete by From address ---

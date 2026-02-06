@@ -196,32 +196,25 @@ export function registerAllIpcHandlers() {
             onProgress
         );
     });
+    ipcMain.handle(IPC_CHANNELS.MAIL_CANCEL_FETCH, async _e => {
+        gmailService.cancelFetch();
+        imapService.cancelFetch();
+    });
+    // Body/BodyParts/Raw: all read from sampling cache (no provider connection)
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_EMAIL_BODY, async (_e, accountId: string, messageId: string) => {
         const provider = await getAccountProvider(accountId);
-        if (provider === 'imap') {
-            const imapSettings = await requireImapSettings(accountId);
-            return imapService.getEmailBody(imapSettings, messageId);
-        }
-        const gcpSettings = await settingsManager.getGcpSettings();
-        return gmailService.getEmailBody(accountId, messageId, gcpSettings.clientId, gcpSettings.clientSecret);
+        if (provider === 'imap') return imapService.getEmailBody(accountId, messageId);
+        return gmailService.getEmailBody(accountId, messageId);
     });
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_EMAIL_BODY_PARTS, async (_e, accountId: string, messageId: string) => {
         const provider = await getAccountProvider(accountId);
-        if (provider === 'imap') {
-            const imapSettings = await requireImapSettings(accountId);
-            return imapService.getEmailBodyParts(imapSettings, messageId);
-        }
-        const gcpSettings = await settingsManager.getGcpSettings();
-        return gmailService.getEmailBodyParts(accountId, messageId, gcpSettings.clientId, gcpSettings.clientSecret);
+        if (provider === 'imap') return imapService.getEmailBodyParts(accountId, messageId);
+        return gmailService.getEmailBodyParts(accountId, messageId);
     });
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_EMAIL_RAW, async (_e, accountId: string, messageId: string) => {
         const provider = await getAccountProvider(accountId);
-        if (provider === 'imap') {
-            const imapSettings = await requireImapSettings(accountId);
-            return imapService.getEmailRaw(imapSettings, messageId);
-        }
-        const gcpSettings = await settingsManager.getGcpSettings();
-        return gmailService.getEmailRaw(accountId, messageId, gcpSettings.clientId, gcpSettings.clientSecret);
+        if (provider === 'imap') return imapService.getEmailRaw(accountId, messageId);
+        return gmailService.getEmailRaw(accountId, messageId);
     });
     ipcMain.handle(
         IPC_CHANNELS.MAIL_BULK_DELETE_BY_FROM,
@@ -311,15 +304,10 @@ export function registerAllIpcHandlers() {
             const cached = await gmailService.getCachedResult(accountId, fetchMode);
             if (!cached) throw new Error('No cached result');
             const targetMessages = cached.result.messages.filter(m => messageIds.includes(m.id));
-            let getBodyParts: (msgId: string) => Promise<{ plain: string; html: string }>;
-            if (provider === 'imap') {
-                const imapSettings = await requireImapSettings(accountId);
-                getBodyParts = (msgId: string) => imapService.getEmailBodyParts(imapSettings, msgId);
-            } else {
-                const gcpSettings = await settingsManager.getGcpSettings();
-                getBodyParts = (msgId: string) =>
-                    gmailService.getEmailBodyParts(accountId, msgId, gcpSettings.clientId, gcpSettings.clientSecret);
-            }
+            const getBodyParts =
+                provider === 'imap'
+                    ? (msgId: string) => imapService.getEmailBodyParts(accountId, msgId)
+                    : (msgId: string) => gmailService.getEmailBodyParts(accountId, msgId);
             const judgments = await ollamaService.runAIJudgment(targetMessages, getBodyParts, progress => {
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send(IPC_CHANNELS.EVENT_AI_PROGRESS, progress);

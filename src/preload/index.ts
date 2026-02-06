@@ -37,6 +37,7 @@ const CH = {
     ACCOUNTS_GET_IMAP_SETTINGS: 'accounts:getImapSettings',
     ACCOUNTS_UPDATE_IMAP: 'accounts:updateImap',
     MAIL_FETCH_EMAILS: 'mail:fetchEmails',
+    MAIL_CANCEL_FETCH: 'mail:cancelFetch',
     MAIL_GET_EMAIL_BODY: 'mail:getEmailBody',
     MAIL_GET_EMAIL_BODY_PARTS: 'mail:getEmailBodyParts',
     MAIL_GET_EMAIL_RAW: 'mail:getEmailRaw',
@@ -104,6 +105,7 @@ const api: IpcApi = {
 
     // Mail
     fetchEmails: options => ipcRenderer.invoke(CH.MAIL_FETCH_EMAILS, options),
+    cancelFetch: () => ipcRenderer.invoke(CH.MAIL_CANCEL_FETCH),
     getEmailBody: (accountId, messageId) => ipcRenderer.invoke(CH.MAIL_GET_EMAIL_BODY, accountId, messageId),
     getEmailBodyParts: (accountId, messageId) => ipcRenderer.invoke(CH.MAIL_GET_EMAIL_BODY_PARTS, accountId, messageId),
     getEmailRaw: (accountId, messageId) => ipcRenderer.invoke(CH.MAIL_GET_EMAIL_RAW, accountId, messageId),

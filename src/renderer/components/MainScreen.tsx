@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button } from '@mui/material';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typography } from '@mui/material';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DateRangeIcon from '@mui/icons-material/DateRange';
@@ -24,10 +24,15 @@ export default function MainScreen() {
         groupMode,
         getFilteredFromGroups,
         getFilteredSubjectGroups,
+        fetchEmails,
+        fetchMode,
+        samplingMeta,
+        isFetching,
     } = useEmailStore();
     const { setStatusMessage } = useAppStore();
     const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
     const [periodDeleteDialogOpen, setPeriodDeleteDialogOpen] = React.useState(false);
+    const [refetchDialogMessage, setRefetchDialogMessage] = React.useState<string | null>(null);
     const [ollamaConfigured, setOllamaConfigured] = React.useState(false);
 
     React.useEffect(() => {
@@ -35,6 +40,16 @@ export default function MainScreen() {
             setOllamaConfigured(!!s.host && !!s.model);
         });
     }, []);
+
+    const handleRefetch = async () => {
+        setRefetchDialogMessage(null);
+        if (!activeAccountId) return;
+        if (fetchMode === 'range' && samplingMeta) {
+            await fetchEmails(activeAccountId, samplingMeta.startDate, samplingMeta.endDate, false);
+        } else {
+            await fetchEmails(activeAccountId, undefined, undefined, true);
+        }
+    };
 
     const handleAIJudgment = async () => {
         if (!activeAccountId) return;
@@ -74,13 +89,13 @@ export default function MainScreen() {
                     .map(g => g.displaySubject);
                 result = await window.mailvalet.bulkDeleteBySubject(activeAccountId, subjects);
             }
-            setStatusMessage(
-                t('status.deleteResult', {
-                    trashed: result.trashed,
-                    excluded: result.excluded,
-                    errors: result.errors,
-                })
-            );
+            const resultMsg = t('status.deleteResult', {
+                trashed: result.trashed,
+                excluded: result.excluded,
+                errors: result.errors,
+            });
+            setStatusMessage(resultMsg);
+            setRefetchDialogMessage(resultMsg);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             setStatusMessage(`Delete error: ${msg}`);
@@ -125,13 +140,13 @@ export default function MainScreen() {
             const messageIds = filteredMessages.map(msg => msg.id);
             const excluded = selectedMessages.length - filteredMessages.length;
             const result = await window.mailvalet.deleteByMessageIds(activeAccountId, messageIds);
-            setStatusMessage(
-                t('status.deleteResult', {
-                    trashed: result.trashed,
-                    excluded: excluded + result.excluded,
-                    errors: result.errors,
-                })
-            );
+            const resultMsg = t('status.deleteResult', {
+                trashed: result.trashed,
+                excluded: excluded + result.excluded,
+                errors: result.errors,
+            });
+            setStatusMessage(resultMsg);
+            setRefetchDialogMessage(resultMsg);
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             setStatusMessage(`Delete error: ${msg}`);
@@ -197,6 +212,24 @@ export default function MainScreen() {
                 onCancel={() => setPeriodDeleteDialogOpen(false)}
                 severity="warning"
             />
+            <Dialog
+                open={Boolean(refetchDialogMessage)}
+                onClose={() => setRefetchDialogMessage(null)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>{t('delete.completeTitle')}</DialogTitle>
+                <DialogContent>
+                    <Typography>{refetchDialogMessage}</Typography>
+                    <Typography sx={{ mt: 1 }}>{t('delete.refetchPrompt')}</Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleRefetch} variant="contained" disabled={isFetching}>
+                        {t('common.yes')}
+                    </Button>
+                    <Button onClick={() => setRefetchDialogMessage(null)}>{t('common.no')}</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

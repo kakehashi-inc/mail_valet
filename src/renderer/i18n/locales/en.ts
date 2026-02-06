@@ -11,6 +11,8 @@ export default {
         error: 'Error',
         loading: 'Loading...',
         add: 'Add',
+        yes: 'Yes',
+        no: 'No',
     },
 
     account: {
@@ -76,6 +78,8 @@ export default {
         periodConfirmTitle: 'Confirm Period Delete',
         periodConfirmMessage:
             'Move sampled emails from the {{groups}} selected groups to trash? Only emails collected within the sampling period are affected.',
+        completeTitle: 'Delete Complete',
+        refetchPrompt: 'Would you like to fetch again to see the updated results?',
     },
 
     status: {

@@ -179,13 +179,21 @@ async function refreshAccessToken(accountId: string, clientId: string, clientSec
     }
 }
 
+// --- Fetch cancel ---
+let fetchAbortController: AbortController | null = null;
+
+export function cancelFetch(): void {
+    fetchAbortController?.abort();
+}
+
 // --- Authorized fetch helper ---
 async function gmailFetch(
     accountId: string,
     clientId: string,
     clientSecret: string,
     endpoint: string,
-    options?: RequestInit
+    options?: RequestInit,
+    signal?: AbortSignal
 ): Promise<any> {
     let tokens = await getAccountTokens(accountId);
     if (!tokens) throw new Error('No tokens');
@@ -196,16 +204,18 @@ async function gmailFetch(
         tokens = { ...tokens, accessToken: newToken };
     }
 
-    const response = await fetch(`${GMAIL_API_BASE}${endpoint}`, {
+    const fetchOpts: RequestInit = {
         ...options,
         headers: { Authorization: `Bearer ${tokens.accessToken}`, ...(options?.headers || {}) },
-    });
+        signal,
+    };
+    const response = await fetch(`${GMAIL_API_BASE}${endpoint}`, fetchOpts);
 
     if (response.status === 401) {
         const newToken = await refreshAccessToken(accountId, clientId, clientSecret);
         if (!newToken) throw new Error('Token refresh failed');
         const retryResponse = await fetch(`${GMAIL_API_BASE}${endpoint}`, {
-            ...options,
+            ...fetchOpts,
             headers: { Authorization: `Bearer ${newToken}`, ...(options?.headers || {}) },
         });
         if (!retryResponse.ok) throw new Error(`Gmail API error: ${retryResponse.status}`);
@@ -245,34 +255,6 @@ function extractFromAddress(from: string): string {
 function decodeBase64Url(data: string): string {
     const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
     return Buffer.from(base64, 'base64').toString('utf-8');
-}
-
-function extractBody(payload: any): string {
-    if (payload.body?.data) {
-        return decodeBase64Url(payload.body.data);
-    }
-    if (payload.parts) {
-        // Prefer text/plain, fall back to text/html
-        const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
-        if (textPart?.body?.data) return decodeBase64Url(textPart.body.data);
-        const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
-        if (htmlPart?.body?.data) {
-            const html = decodeBase64Url(htmlPart.body.data);
-            return html
-                .replace(/<[^>]*>/g, '')
-                .replace(/&nbsp;/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-        }
-        // Recursively search nested parts
-        for (const part of payload.parts) {
-            if (part.parts) {
-                const nested = extractBody(part);
-                if (nested) return nested;
-            }
-        }
-    }
-    return '';
 }
 
 function getHeader(headers: any[], name: string): string {
@@ -362,86 +344,132 @@ export async function fetchEmails(
 
     onProgress?.({ current: 0, total: 0, message: 'Fetching message list...' });
 
-    // Fetch message IDs
-    const allMessageIds: string[] = [];
-    let pageToken: string | undefined;
-    do {
-        const params = new URLSearchParams({
-            q: query,
-            maxResults: String(Math.min(500, maxResults - allMessageIds.length)),
-        });
-        if (pageToken) params.set('pageToken', pageToken);
-        const listData = await gmailFetch(options.accountId, clientId, clientSecret, `/messages?${params}`);
-        const msgs = listData.messages || [];
-        allMessageIds.push(...msgs.map((m: any) => m.id));
-        pageToken = listData.nextPageToken;
-    } while (pageToken && allMessageIds.length < maxResults);
+    fetchAbortController = new AbortController();
+    const signal = fetchAbortController.signal;
 
-    const totalToFetch = allMessageIds.length;
-    onProgress?.({ current: 0, total: totalToFetch, message: `Fetching ${totalToFetch} messages...` });
+    try {
+        // Fetch message IDs
+        const allMessageIds: string[] = [];
+        let pageToken: string | undefined;
+        do {
+            const params = new URLSearchParams({
+                q: query,
+                maxResults: String(Math.min(500, maxResults - allMessageIds.length)),
+            });
+            if (pageToken) params.set('pageToken', pageToken);
+            const listData = await gmailFetch(
+                options.accountId,
+                clientId,
+                clientSecret,
+                `/messages?${params}`,
+                undefined,
+                signal
+            );
+            const msgs = listData.messages || [];
+            allMessageIds.push(...msgs.map((m: any) => m.id));
+            pageToken = listData.nextPageToken;
+        } while (pageToken && allMessageIds.length < maxResults);
 
-    // Fetch message details in batches
-    const messages: EmailMessage[] = [];
-    const batchSize = 10;
-    for (let i = 0; i < allMessageIds.length; i += batchSize) {
-        const batch = allMessageIds.slice(i, i + batchSize);
-        const results = await Promise.all(
-            batch.map(id =>
-                gmailFetch(
-                    options.accountId,
-                    clientId,
-                    clientSecret,
-                    `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`
-                )
-            )
-        );
-        for (const msg of results) {
-            messages.push(parseMessage(msg));
+        const totalToFetch = allMessageIds.length;
+        onProgress?.({ current: 0, total: totalToFetch, message: `Fetching ${totalToFetch} messages...` });
+
+        // Fetch message details in batches (format=full + format=raw to cache everything)
+        const messages: EmailMessage[] = [];
+        const bodyPartsMap: Record<string, EmailBodyParts> = {};
+        const rawBodiesMap: Record<string, string> = {};
+        const batchSize = 10;
+        for (let i = 0; i < allMessageIds.length; i += batchSize) {
+            const batch = allMessageIds.slice(i, i + batchSize);
+            const [fullResults, rawResults] = await Promise.all([
+                Promise.all(
+                    batch.map(id =>
+                        gmailFetch(
+                            options.accountId,
+                            clientId,
+                            clientSecret,
+                            `/messages/${id}?format=full`,
+                            undefined,
+                            signal
+                        )
+                    )
+                ),
+                Promise.all(
+                    batch.map(id =>
+                        gmailFetch(
+                            options.accountId,
+                            clientId,
+                            clientSecret,
+                            `/messages/${id}?format=raw`,
+                            undefined,
+                            signal
+                        )
+                    )
+                ),
+            ]);
+            for (const msg of fullResults) {
+                messages.push(parseMessage(msg));
+                bodyPartsMap[msg.id] = extractBodyParts(msg.payload || {});
+            }
+            for (const msg of rawResults) {
+                rawBodiesMap[msg.id] = msg.raw ? decodeBase64Url(msg.raw) : '';
+            }
+            onProgress?.({
+                current: messages.length,
+                total: totalToFetch,
+                message: `Fetched ${messages.length}/${totalToFetch} messages`,
+            });
         }
-        onProgress?.({
-            current: messages.length,
-            total: totalToFetch,
-            message: `Fetched ${messages.length}/${totalToFetch} messages`,
-        });
+
+        const periodDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+        const fromGroups = buildFromGroups(messages, periodDays);
+
+        const result: SamplingResult = {
+            messages,
+            fromGroups,
+            periodStart: startDate.toISOString(),
+            periodEnd: endDate.toISOString(),
+            totalCount: messages.length,
+            bodyParts: bodyPartsMap,
+            rawBodies: rawBodiesMap,
+        };
+
+        const mode: FetchMode = options.useDays ? 'days' : 'range';
+        const meta: SamplingMeta = {
+            mode,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            fetchedAt: new Date().toISOString(),
+            labelIds: selectedLabelIds,
+            totalCount: messages.length,
+        };
+
+        // Save cache (per mode)
+        await writeJsonFile(getSamplingResultPath(options.accountId, mode), result);
+        await writeJsonFile(getSamplingMetaPath(options.accountId, mode), meta);
+
+        return result;
+    } finally {
+        fetchAbortController = null;
     }
-
-    const periodDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
-    const fromGroups = buildFromGroups(messages, periodDays);
-
-    const result: SamplingResult = {
-        messages,
-        fromGroups,
-        periodStart: startDate.toISOString(),
-        periodEnd: endDate.toISOString(),
-        totalCount: messages.length,
-    };
-
-    const mode: FetchMode = options.useDays ? 'days' : 'range';
-    const meta: SamplingMeta = {
-        mode,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        fetchedAt: new Date().toISOString(),
-        labelIds: selectedLabelIds,
-        totalCount: messages.length,
-    };
-
-    // Save cache (per mode)
-    await writeJsonFile(getSamplingResultPath(options.accountId, mode), result);
-    await writeJsonFile(getSamplingMetaPath(options.accountId, mode), meta);
-
-    return result;
 }
 
 // --- Get email body ---
-export async function getEmailBody(
-    accountId: string,
-    messageId: string,
-    clientId: string,
-    clientSecret: string
-): Promise<string> {
-    const msg = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=full`);
-    return extractBody(msg.payload || {});
+export async function getEmailBody(accountId: string, messageId: string): Promise<string> {
+    for (const mode of ['days', 'range'] as const) {
+        const cached = await getCachedResult(accountId, mode);
+        const parts = cached?.result.bodyParts?.[messageId];
+        if (parts) {
+            if (parts.plain) return parts.plain;
+            if (parts.html) {
+                return parts.html
+                    .replace(/<[^>]*>/g, '')
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+        }
+    }
+    return '';
 }
 
 // --- Get email body parts (plain + html separately) ---
@@ -472,25 +500,21 @@ function extractBodyParts(payload: any): EmailBodyParts {
     return result;
 }
 
-export async function getEmailBodyParts(
-    accountId: string,
-    messageId: string,
-    clientId: string,
-    clientSecret: string
-): Promise<EmailBodyParts> {
-    const msg = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=full`);
-    return extractBodyParts(msg.payload || {});
+export async function getEmailBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts> {
+    for (const mode of ['days', 'range'] as const) {
+        const cached = await getCachedResult(accountId, mode);
+        if (cached?.result.bodyParts?.[messageId]) return cached.result.bodyParts[messageId];
+    }
+    return { plain: '', html: '' };
 }
 
 // --- Get raw email ---
-export async function getEmailRaw(
-    accountId: string,
-    messageId: string,
-    clientId: string,
-    clientSecret: string
-): Promise<string> {
-    const msg = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=raw`);
-    return msg.raw ? decodeBase64Url(msg.raw) : '';
+export async function getEmailRaw(accountId: string, messageId: string): Promise<string> {
+    for (const mode of ['days', 'range'] as const) {
+        const cached = await getCachedResult(accountId, mode);
+        if (cached?.result.rawBodies?.[messageId]) return cached.result.rawBodies[messageId];
+    }
+    return '';
 }
 
 // --- Bulk delete by From address (all-period) ---

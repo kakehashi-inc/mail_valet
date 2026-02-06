@@ -11,6 +11,8 @@ export default {
         error: 'エラー',
         loading: '読み込み中...',
         add: '追加',
+        yes: 'はい',
+        no: 'いいえ',
     },
 
     account: {
@@ -76,6 +78,8 @@ export default {
         periodConfirmTitle: '期間削除の確認',
         periodConfirmMessage:
             '選択した{{groups}}件のグループのサンプリング済みメールをゴミ箱に移動しますか？サンプリング期間内に取得されたメールのみが対象です。',
+        completeTitle: '削除完了',
+        refetchPrompt: '最新の状態を表示するために再取得しますか？',
     },
 
     status: {

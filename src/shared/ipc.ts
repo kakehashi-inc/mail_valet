@@ -67,6 +67,7 @@ export type IpcApi = {
 
     // Mail
     fetchEmails(options: FetchEmailsOptions): Promise<SamplingResult>;
+    cancelFetch(): Promise<void>;
     getEmailBody(accountId: string, messageId: string): Promise<string>;
     getEmailBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts>;
     getEmailRaw(accountId: string, messageId: string): Promise<string>;

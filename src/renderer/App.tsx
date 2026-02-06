@@ -72,6 +72,7 @@ export default function App() {
                     current={fetchProgress?.current ?? 0}
                     total={fetchProgress?.total ?? 0}
                     message={fetchProgress?.message ?? ''}
+                    onCancel={() => useEmailStore.getState().cancelFetch()}
                 />
                 <ProgressDialog
                     open={isJudging}

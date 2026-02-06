@@ -174,6 +174,8 @@ export interface SamplingResult {
     periodStart: string;
     periodEnd: string;
     totalCount: number;
+    bodyParts?: Record<string, EmailBodyParts>;
+    rawBodies?: Record<string, string>;
 }
 
 export interface SamplingMeta {

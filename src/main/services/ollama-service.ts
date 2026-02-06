@@ -33,9 +33,11 @@ const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_BODY_LENGTH = 4000;
 
 let cancelRequested = false;
+let abortController: AbortController | null = null;
 
 export function cancelAIJudgment(): void {
     cancelRequested = true;
+    abortController?.abort();
 }
 
 export async function testConnection(host: string): Promise<boolean> {
@@ -185,15 +187,24 @@ function buildPrompt(
 // ---------------------------------------------------------------------------
 // Single email judgment
 // ---------------------------------------------------------------------------
-async function judgeEmail(host: string, model: string, timeout: number, prompt: string): Promise<AIJudgment> {
+async function judgeEmail(
+    host: string,
+    model: string,
+    timeout: number,
+    prompt: string,
+    signal?: AbortSignal
+): Promise<AIJudgment> {
     const timeoutMs = timeout === 0 ? 0 : timeout * 1000;
-    const signal = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
+    const signals: AbortSignal[] = [];
+    if (signal) signals.push(signal);
+    if (timeoutMs > 0) signals.push(AbortSignal.timeout(timeoutMs));
+    const combinedSignal = signals.length > 0 ? AbortSignal.any(signals) : undefined;
 
     const response = await fetch(`${host}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, prompt, stream: false }),
-        signal,
+        signal: combinedSignal,
     });
 
     if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
@@ -216,6 +227,8 @@ export async function runAIJudgment(
     onProgress?: ProgressCallback
 ): Promise<Map<string, AIJudgment>> {
     cancelRequested = false;
+    abortController = new AbortController();
+    const { signal } = abortController;
     const settings = await getOllamaSettings();
     if (!settings.host || !settings.model) throw new Error('Ollama not configured');
     const aiJudgmentSettings = await getAIJudgmentSettings();
@@ -224,6 +237,8 @@ export async function runAIJudgment(
     const cache = await loadAICache();
     const results = new Map<string, AIJudgment>();
     const toProcess: { msg: EmailMessage; hash: string; prompt: string }[] = [];
+
+    const totalMessages = messages.length;
 
     // Phase 1: Fetch body parts, select body, compute hash, check cache
     for (let i = 0; i < messages.length; i++) {
@@ -241,13 +256,14 @@ export async function runAIJudgment(
         }
         onProgress?.({
             current: i + 1,
-            total: messages.length,
-            message: `Preparing: ${i + 1}/${messages.length} (${results.size} cached)`,
+            total: totalMessages,
+            message: `Preparing: ${i + 1}/${totalMessages} (${results.size} cached)`,
         });
     }
 
     // Phase 2: AI judgment for uncached messages
-    const total = toProcess.length;
+    // Continue progress from where Phase 1 ended (cached count already done)
+    const cachedCount = totalMessages - toProcess.length;
     let processed = 0;
 
     const concurrency = Math.max(1, settings.concurrency);
@@ -256,7 +272,7 @@ export async function runAIJudgment(
         const batch = toProcess.slice(i, i + concurrency);
         const batchResults = await Promise.allSettled(
             batch.map(async ({ msg, hash, prompt }) => {
-                const judgment = await judgeEmail(settings.host, settings.model, settings.timeout, prompt);
+                const judgment = await judgeEmail(settings.host, settings.model, settings.timeout, prompt, signal);
                 return { msgId: msg.id, hash, judgment };
             })
         );
@@ -268,13 +284,15 @@ export async function runAIJudgment(
             }
         }
         processed += batch.length;
+        const done = cachedCount + Math.min(processed, toProcess.length);
         onProgress?.({
-            current: Math.min(processed, total),
-            total,
-            message: `AI judgment: ${Math.min(processed, total)}/${total}`,
+            current: done,
+            total: totalMessages,
+            message: `AI judgment: ${done}/${totalMessages}`,
         });
     }
 
+    abortController = null;
     await saveAICache(cache);
     return results;
 }
