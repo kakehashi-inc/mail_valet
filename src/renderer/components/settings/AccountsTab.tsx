@@ -11,19 +11,49 @@ import {
     Button,
     Chip,
     Alert,
+    Menu,
+    MenuItem,
+    ListItemIcon,
+    ListItemText,
+    IconButton,
+    Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import LogoutIcon from '@mui/icons-material/Logout';
+import EmailIcon from '@mui/icons-material/Email';
+import DnsIcon from '@mui/icons-material/Dns';
+import SettingsIcon from '@mui/icons-material/Settings';
+import FolderIcon from '@mui/icons-material/Folder';
 import { useTranslation } from 'react-i18next';
 import { useAccountStore } from '../../stores/useAccountStore';
 import LabelTree from '../LabelTree';
-import type { Account } from '@shared/types';
+import ImapAccountDialog from './ImapAccountDialog';
+import type { ImapConnectionSettings } from '@shared/types';
 
 export default function AccountsTab() {
     const { t } = useTranslation();
-    const { accounts, addAccount, removeAccount } = useAccountStore();
-    const [selectedAccount, setSelectedAccount] = React.useState<Account | null>(null);
+    const { accounts, addAccount, addImapAccount, removeAccount } = useAccountStore();
     const [connectionStates, setConnectionStates] = React.useState<Record<string, boolean>>({});
+    const [addMenuAnchor, setAddMenuAnchor] = React.useState<null | HTMLElement>(null);
+    const [imapDialogOpen, setImapDialogOpen] = React.useState(false);
+    const [editImapAccountId, setEditImapAccountId] = React.useState<string | null>(null);
+    const [labelAccountId, setLabelAccountId] = React.useState<string | null>(null);
+
+    const labelAccount = React.useMemo(
+        () => accounts.find(a => a.id === labelAccountId) ?? null,
+        [accounts, labelAccountId],
+    );
+
+    const sortedAccounts = React.useMemo(() => {
+        return [...accounts].sort((a, b) => {
+            if (a.provider !== b.provider) return a.provider === 'gmail' ? -1 : 1;
+            return a.email.localeCompare(b.email);
+        });
+    }, [accounts]);
 
     React.useEffect(() => {
         const checkAll = async () => {
@@ -31,7 +61,8 @@ export default function AccountsTab() {
             for (const account of accounts) {
                 try {
                     states[account.id] = await window.mailvalet.getConnectionStatus(account.id);
-                } catch {
+                } catch (e) {
+                    console.warn('[AccountsTab] Connection check failed for', account.id, e);
                     states[account.id] = false;
                 }
             }
@@ -40,16 +71,35 @@ export default function AccountsTab() {
         checkAll();
     }, [accounts]);
 
-    const handleAdd = async () => {
+    const handleAddGmail = async () => {
+        setAddMenuAnchor(null);
         await addAccount();
+    };
+
+    const handleAddImap = () => {
+        setAddMenuAnchor(null);
+        setImapDialogOpen(true);
+    };
+
+    const handleImapAdd = async (settings: ImapConnectionSettings) => {
+        await addImapAccount(settings);
+    };
+
+    const handleImapSave = async (accountId: string, settings: ImapConnectionSettings) => {
+        await window.mailvalet.updateImapSettings(accountId, settings);
+        const { loadAccounts } = useAccountStore.getState();
+        await loadAccounts();
+    };
+
+    const handleEditImap = (accountId: string) => {
+        setEditImapAccountId(accountId);
     };
 
     const handleRemove = async (accountId: string) => {
         await removeAccount(accountId);
-        if (selectedAccount?.id === accountId) {
-            setSelectedAccount(null);
-        }
     };
+
+    const hasGmailAccounts = accounts.some(a => a.provider === 'gmail');
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -59,26 +109,52 @@ export default function AccountsTab() {
                     <TableHead>
                         <TableRow>
                             <TableCell>{t('settings.email')}</TableCell>
+                            <TableCell>{t('settings.provider')}</TableCell>
+                            <TableCell padding="checkbox" />
                             <TableCell>{t('settings.status')}</TableCell>
                             <TableCell />
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {accounts.map(account => (
-                            <TableRow
-                                key={account.id}
-                                hover
-                                selected={selectedAccount?.id === account.id}
-                                onClick={() => setSelectedAccount(account)}
-                                sx={{ cursor: 'pointer' }}
-                            >
+                        {sortedAccounts.map(account => (
+                            <TableRow key={account.id} hover>
                                 <TableCell>{account.email}</TableCell>
+                                <TableCell>
+                                    <Chip
+                                        label={account.provider === 'gmail' ? 'Gmail' : 'IMAP'}
+                                        size="small"
+                                        variant="outlined"
+                                        color={account.provider === 'gmail' ? 'primary' : 'secondary'}
+                                    />
+                                </TableCell>
+                                <TableCell padding="checkbox">
+                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                        {account.provider === 'imap' && (
+                                            <Tooltip title={t('imap.editTitle')}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => handleEditImap(account.id)}
+                                                >
+                                                    <SettingsIcon fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+                                        <Tooltip title={t('settings.labelSettings')}>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => setLabelAccountId(account.id)}
+                                            >
+                                                <FolderIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Box>
+                                </TableCell>
                                 <TableCell>
                                     <Chip
                                         label={
                                             connectionStates[account.id]
-                                                ? t('account.connected')
-                                                : t('account.disconnected')
+                                                ? t('account.active')
+                                                : t('account.inactive')
                                         }
                                         size="small"
                                         color={connectionStates[account.id] ? 'success' : 'default'}
@@ -90,10 +166,7 @@ export default function AccountsTab() {
                                         size="small"
                                         color="error"
                                         startIcon={<LogoutIcon />}
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            handleRemove(account.id);
-                                        }}
+                                        onClick={() => handleRemove(account.id)}
                                     >
                                         {t('account.logout')}
                                     </Button>
@@ -102,7 +175,7 @@ export default function AccountsTab() {
                         ))}
                         {accounts.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={3} align="center">
+                                <TableCell colSpan={5} align="center">
                                     <Typography variant="body2" color="text.secondary">
                                         {t('settings.noAccounts')}
                                     </Typography>
@@ -112,18 +185,59 @@ export default function AccountsTab() {
                     </TableBody>
                 </Table>
             </TableContainer>
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAdd}>
+            <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={e => setAddMenuAnchor(e.currentTarget)}
+            >
                 {t('account.addAccount')}
             </Button>
-            <Alert severity="info">{t('settings.gcpRequired')}</Alert>
-            {selectedAccount && (
-                <Box sx={{ mt: 2 }}>
-                    <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                        {selectedAccount.email} - {t('settings.labelSettings')}
-                    </Typography>
-                    <LabelTree accountId={selectedAccount.id} />
-                </Box>
-            )}
+            <Menu
+                anchorEl={addMenuAnchor}
+                open={Boolean(addMenuAnchor)}
+                onClose={() => setAddMenuAnchor(null)}
+            >
+                <MenuItem onClick={handleAddGmail}>
+                    <ListItemIcon>
+                        <EmailIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Gmail</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleAddImap}>
+                    <ListItemIcon>
+                        <DnsIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>IMAP</ListItemText>
+                </MenuItem>
+            </Menu>
+            {hasGmailAccounts && <Alert severity="info">{t('settings.gcpRequired')}</Alert>}
+            <Dialog
+                open={Boolean(labelAccountId)}
+                onClose={() => setLabelAccountId(null)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle>
+                    {labelAccount?.email} - {t('settings.labelSettings')}
+                </DialogTitle>
+                <DialogContent>
+                    {labelAccountId && <LabelTree accountId={labelAccountId} />}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setLabelAccountId(null)}>{t('common.close')}</Button>
+                </DialogActions>
+            </Dialog>
+            <ImapAccountDialog
+                open={imapDialogOpen}
+                onClose={() => setImapDialogOpen(false)}
+                onAdd={handleImapAdd}
+            />
+            <ImapAccountDialog
+                open={Boolean(editImapAccountId)}
+                onClose={() => setEditImapAccountId(null)}
+                editAccountId={editImapAccountId}
+                onSave={handleImapSave}
+            />
         </Box>
     );
 }

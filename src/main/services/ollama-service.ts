@@ -42,7 +42,8 @@ export async function testConnection(host: string): Promise<boolean> {
     try {
         const response = await fetch(`${host}/api/tags`, { signal: AbortSignal.timeout(10000) });
         return response.ok;
-    } catch {
+    } catch (e) {
+        console.warn('[Ollama] Connection test failed:', e);
         return false;
     }
 }
@@ -53,7 +54,8 @@ export async function getModels(host: string): Promise<string[]> {
         if (!response.ok) return [];
         const data = (await response.json()) as any;
         return (data.models || []).map((m: any) => m.name || m.model);
-    } catch {
+    } catch (e) {
+        console.warn('[Ollama] Failed to fetch models:', e);
         return [];
     }
 }

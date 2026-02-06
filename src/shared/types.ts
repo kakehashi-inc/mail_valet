@@ -60,7 +60,17 @@ export interface GcpSettings {
 // ---------------------------------------------------------------------------
 // Mail Provider (extensible for future providers: outlook, yahoo, etc.)
 // ---------------------------------------------------------------------------
-export type MailProviderId = 'gmail';
+export type MailProviderId = 'gmail' | 'imap';
+
+export type ImapSecurity = 'none' | 'ssl' | 'starttls';
+
+export type ImapConnectionSettings = {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    security: ImapSecurity;
+};
 
 // ---------------------------------------------------------------------------
 // Account
@@ -78,7 +88,7 @@ export interface AccountTokens {
     expiresAt: number;
 }
 
-export interface GmailLabel {
+export interface MailLabel {
     id: string;
     name: string;
     type: 'system' | 'user';

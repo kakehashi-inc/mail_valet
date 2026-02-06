@@ -78,6 +78,10 @@ export function getAccountLabelsPath(accountId: string): string {
     return path.join(getAccountDir(accountId), 'labels.json');
 }
 
+export function getAccountImapSettingsPath(accountId: string): string {
+    return path.join(getAccountDir(accountId), 'imap.json');
+}
+
 export function getSamplingResultPath(accountId: string, mode: string = 'days'): string {
     return path.join(getAccountCacheDir(accountId), `sampling_${mode}.json`);
 }
@@ -143,6 +147,14 @@ export const DEFAULT_GCP_SETTINGS = {
     projectId: '',
 };
 
+export const DEFAULT_IMAP_SETTINGS = {
+    host: '',
+    port: 993,
+    username: '',
+    password: '',
+    security: 'ssl' as const,
+};
+
 // IPC Channels
 export const IPC_CHANNELS = {
     APP_GET_INFO: 'app:getInfo',
@@ -174,14 +186,18 @@ export const IPC_CHANNELS = {
     ACCOUNTS_SAVE_SELECTED_LABELS: 'accounts:saveSelectedLabels',
     ACCOUNTS_REFRESH_LABELS: 'accounts:refreshLabels',
     ACCOUNTS_GET_CONNECTION_STATUS: 'accounts:getConnectionStatus',
-    GMAIL_FETCH_EMAILS: 'gmail:fetchEmails',
-    GMAIL_GET_EMAIL_BODY: 'gmail:getEmailBody',
-    GMAIL_GET_EMAIL_BODY_PARTS: 'gmail:getEmailBodyParts',
-    GMAIL_GET_EMAIL_RAW: 'gmail:getEmailRaw',
-    GMAIL_BULK_DELETE_BY_FROM: 'gmail:bulkDeleteByFrom',
-    GMAIL_DELETE_BY_MESSAGE_IDS: 'gmail:deleteByMessageIds',
-    GMAIL_BULK_DELETE_BY_SUBJECT: 'gmail:bulkDeleteBySubject',
-    GMAIL_GET_CACHED_RESULT: 'gmail:getCachedResult',
+    ACCOUNTS_ADD_IMAP: 'accounts:addImap',
+    ACCOUNTS_TEST_IMAP: 'accounts:testImap',
+    ACCOUNTS_GET_IMAP_SETTINGS: 'accounts:getImapSettings',
+    ACCOUNTS_UPDATE_IMAP: 'accounts:updateImap',
+    MAIL_FETCH_EMAILS: 'mail:fetchEmails',
+    MAIL_GET_EMAIL_BODY: 'mail:getEmailBody',
+    MAIL_GET_EMAIL_BODY_PARTS: 'mail:getEmailBodyParts',
+    MAIL_GET_EMAIL_RAW: 'mail:getEmailRaw',
+    MAIL_BULK_DELETE_BY_FROM: 'mail:bulkDeleteByFrom',
+    MAIL_DELETE_BY_MESSAGE_IDS: 'mail:deleteByMessageIds',
+    MAIL_BULK_DELETE_BY_SUBJECT: 'mail:bulkDeleteBySubject',
+    MAIL_GET_CACHED_RESULT: 'mail:getCachedResult',
     OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
     OLLAMA_GET_MODELS: 'ollama:getModels',
     OLLAMA_RUN_JUDGMENT: 'ollama:runJudgment',

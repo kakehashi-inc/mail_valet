@@ -62,7 +62,7 @@ export default function OllamaTab({ settings, onChange }: Props) {
                 {testResult !== null && (
                     <Chip
                         icon={testResult ? <CheckCircleIcon /> : <ErrorIcon />}
-                        label={testResult ? t('settings.connected') : t('settings.connectionFailed')}
+                        label={testResult ? t('settings.testSuccess') : t('settings.testFailed')}
                         color={testResult ? 'success' : 'error'}
                         size="small"
                         variant="outlined"

@@ -54,7 +54,8 @@ export default function DetailWindow() {
             } else {
                 setViewMode('raw');
             }
-        } catch {
+        } catch (e) {
+            console.error('[DetailWindow] Failed to load email body:', e);
             setBodyParts({ plain: '', html: '' });
             setRawContent('Failed to load email');
         }

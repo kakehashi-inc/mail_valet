@@ -1,6 +1,6 @@
 import type {
     AccountTokens,
-    GmailLabel,
+    MailLabel,
     SamplingResult,
     FetchEmailsOptions,
     FetchProgress,
@@ -23,7 +23,7 @@ export interface MailProvider {
 
     checkConnection(accountId: string, clientId: string, clientSecret: string): Promise<boolean>;
 
-    fetchLabels(accountId: string, clientId: string, clientSecret: string): Promise<GmailLabel[]>;
+    fetchLabels(accountId: string, clientId: string, clientSecret: string): Promise<MailLabel[]>;
 
     fetchEmails(
         options: FetchEmailsOptions,

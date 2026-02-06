@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { BrowserWindow } from 'electron';
 import type {
     AccountTokens,
-    GmailLabel,
+    MailLabel,
     EmailMessage,
     SamplingResult,
     SamplingMeta,
@@ -119,7 +119,8 @@ export async function startOAuthFlow(
                             email: userInfo.email || '',
                             displayName: userInfo.name || userInfo.email || '',
                         });
-                    } catch {
+                    } catch (e) {
+                        console.error('[Gmail] OAuth token exchange failed:', e);
                         resolve(null);
                     }
                 } else {
@@ -172,7 +173,8 @@ async function refreshAccessToken(accountId: string, clientId: string, clientSec
         };
         await saveAccountTokens(accountId, newTokens);
         return data.access_token;
-    } catch {
+    } catch (e) {
+        console.error('[Gmail] Token refresh failed:', e);
         return null;
     }
 }
@@ -218,13 +220,14 @@ export async function checkConnection(accountId: string, clientId: string, clien
     try {
         await gmailFetch(accountId, clientId, clientSecret, '/profile');
         return true;
-    } catch {
+    } catch (e) {
+        console.warn('[Gmail] Connection check failed:', e);
         return false;
     }
 }
 
 // --- Labels ---
-export async function fetchLabels(accountId: string, clientId: string, clientSecret: string): Promise<GmailLabel[]> {
+export async function fetchLabels(accountId: string, clientId: string, clientSecret: string): Promise<MailLabel[]> {
     const data = await gmailFetch(accountId, clientId, clientSecret, '/labels');
     return (data.labels || []).map((l: any) => ({
         id: l.id,
@@ -300,7 +303,7 @@ function parseMessage(msg: any): EmailMessage {
 }
 
 // --- Build FromGroups ---
-function buildFromGroups(messages: EmailMessage[], periodDays: number): FromGroup[] {
+export function buildFromGroups(messages: EmailMessage[], periodDays: number): FromGroup[] {
     const groups = new Map<string, EmailMessage[]>();
     for (const msg of messages) {
         const addr = msg.fromAddress;

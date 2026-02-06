@@ -9,7 +9,7 @@ import type {
     AIJudgmentSettings,
     GcpSettings,
     Account,
-    GmailLabel,
+    MailLabel,
     AccountLabelSelection,
     SamplingResult,
     SamplingMeta,
@@ -21,6 +21,7 @@ import type {
     AppState,
     FetchProgress,
     AIProgress,
+    ImapConnectionSettings,
 } from './types';
 
 export type IpcApi = {
@@ -54,13 +55,17 @@ export type IpcApi = {
     getAccounts(): Promise<Account[]>;
     addAccount(): Promise<Account | null>;
     removeAccount(accountId: string): Promise<void>;
-    getLabels(accountId: string): Promise<GmailLabel[]>;
+    getLabels(accountId: string): Promise<MailLabel[]>;
     getSelectedLabels(accountId: string): Promise<AccountLabelSelection>;
     saveSelectedLabels(accountId: string, selection: AccountLabelSelection): Promise<void>;
-    refreshLabels(accountId: string): Promise<GmailLabel[]>;
+    refreshLabels(accountId: string): Promise<MailLabel[]>;
     getConnectionStatus(accountId: string): Promise<boolean>;
+    addImapAccount(settings: ImapConnectionSettings): Promise<Account | null>;
+    testImapConnection(settings: ImapConnectionSettings): Promise<boolean>;
+    getImapSettings(accountId: string): Promise<ImapConnectionSettings | null>;
+    updateImapSettings(accountId: string, settings: ImapConnectionSettings): Promise<boolean>;
 
-    // Gmail
+    // Mail
     fetchEmails(options: FetchEmailsOptions): Promise<SamplingResult>;
     getEmailBody(accountId: string, messageId: string): Promise<string>;
     getEmailBodyParts(accountId: string, messageId: string): Promise<EmailBodyParts>;

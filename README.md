@@ -2,17 +2,17 @@
 
 ## 1. System Overview
 
-Mail Valet is a desktop application that manages multiple Gmail accounts in one place and helps you efficiently clean up unwanted emails.
+Mail Valet is a desktop application that manages multiple Gmail and IMAP email accounts in one place and helps you efficiently clean up unwanted emails.
 
 ### Key Features
 
-- **Multi-Gmail Account Management**: Secure multi-account support via OAuth2 authentication
+- **Multi-Account Management**: Gmail (OAuth2) and IMAP (credential-based) account support
 - **Email Sampling**: Fetch emails by day count or date range, grouped by sender (From) or subject
 - **Ollama AI Classification**: Automatic marketing/spam scoring (0-10 scale) using a local AI
 - **Bulk Deletion**: Move unwanted groups to trash in bulk (with options to exclude important/starred emails)
 - **Period Deletion**: Delete only the sampled emails from selected groups
 - **Detail View**: View email list, body, and raw data per group in a modeless window
-- **Label Management**: Gmail label tree view with selectable fetch targets
+- **Label/Folder Management**: Gmail label / IMAP folder tree view with selectable fetch targets
 - **Multilingual**: Japanese / English (auto-detected from OS language)
 - **Themes**: Light / Dark mode (auto-detected from OS theme)
 - **Data Management**: Settings export/import, AI judgment cache / all cache clear
@@ -27,6 +27,7 @@ Mail Valet is a desktop application that manages multiple Gmail accounts in one 
 | State Management | Zustand 5 |
 | i18n | i18next |
 | Build | Vite 7 (Renderer) / tsc (Main) |
+| IMAP | imapflow |
 | External Services | GCP Gmail API, Ollama |
 | Data Storage | `~/.mailvalet/` (file-based JSON + AES-256-GCM encryption) |
 

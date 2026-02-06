@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import type { Account, AccountTokens, AccountLabelSelection } from '../../shared/types';
+import type { Account, AccountTokens, AccountLabelSelection, ImapConnectionSettings } from '../../shared/types';
 import {
     getAccountsDir,
     getAccountDir,
@@ -7,6 +7,7 @@ import {
     getAccountProfilePath,
     getAccountTokensPath,
     getAccountLabelsPath,
+    getAccountImapSettingsPath,
 } from '../../shared/constants';
 import { readJsonFile, writeJsonFile, ensureDir, listDirectories, deleteDir } from './file-manager';
 import { encrypt, decrypt } from './encryption';
@@ -54,7 +55,8 @@ export async function getAccountTokens(accountId: string): Promise<AccountTokens
             refreshToken: raw.refreshToken ? decrypt(raw.refreshToken) : '',
             expiresAt: raw.expiresAt || 0,
         };
-    } catch {
+    } catch (e) {
+        console.error('[AccountManager] Failed to decrypt tokens:', e);
         return null;
     }
 }
@@ -74,4 +76,60 @@ export async function getSelectedLabels(accountId: string): Promise<AccountLabel
 
 export async function saveSelectedLabels(accountId: string, selection: AccountLabelSelection): Promise<void> {
     await writeJsonFile(getAccountLabelsPath(accountId), selection);
+}
+
+export async function createImapAccount(
+    email: string,
+    displayName: string,
+    imapSettings: ImapConnectionSettings
+): Promise<Account> {
+    const id = generateAccountId();
+    const accountDir = getAccountDir(id);
+    const cacheDir = getAccountCacheDir(id);
+    await ensureDir(accountDir);
+    await ensureDir(cacheDir);
+
+    const profile: Account = { id, email, displayName, provider: 'imap' };
+    await writeJsonFile(getAccountProfilePath(id), profile);
+    await saveImapSettings(id, imapSettings);
+    await writeJsonFile(getAccountLabelsPath(id), { selectedLabelIds: ['INBOX'] });
+    return profile;
+}
+
+export async function getImapSettings(accountId: string): Promise<ImapConnectionSettings | null> {
+    const raw = await readJsonFile<any>(getAccountImapSettingsPath(accountId), null);
+    if (!raw) return null;
+    try {
+        return {
+            host: raw.host || '',
+            port: raw.port || 993,
+            username: raw.username || '',
+            password: raw.password ? decrypt(raw.password) : '',
+            security: raw.security || 'ssl',
+        };
+    } catch (e) {
+        console.error('[AccountManager] Failed to decrypt IMAP settings:', e);
+        return null;
+    }
+}
+
+export async function saveImapSettings(accountId: string, settings: ImapConnectionSettings): Promise<void> {
+    const encrypted = {
+        host: settings.host,
+        port: settings.port,
+        username: settings.username,
+        password: settings.password ? encrypt(settings.password) : '',
+        security: settings.security,
+    };
+    await writeJsonFile(getAccountImapSettingsPath(accountId), encrypted);
+}
+
+export async function updateAccountProfile(
+    accountId: string,
+    updates: Partial<Omit<Account, 'id' | 'provider'>>
+): Promise<void> {
+    const profile = await readJsonFile<Account | null>(getAccountProfilePath(accountId), null);
+    if (!profile) return;
+    const updated = { ...profile, ...updates };
+    await writeJsonFile(getAccountProfilePath(accountId), updated);
 }

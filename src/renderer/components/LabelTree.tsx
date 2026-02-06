@@ -14,13 +14,13 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
-import type { GmailLabel, LabelTreeNode } from '@shared/types';
+import type { MailLabel, LabelTreeNode } from '@shared/types';
 
 interface Props {
     accountId: string;
 }
 
-function buildTree(labels: GmailLabel[]): LabelTreeNode[] {
+function buildTree(labels: MailLabel[]): LabelTreeNode[] {
     const rootNodes: LabelTreeNode[] = [];
     const nodeMap = new Map<string, LabelTreeNode>();
 
@@ -123,7 +123,7 @@ function TreeNodeComponent({
 
 export default function LabelTree({ accountId }: Props) {
     const { t } = useTranslation();
-    const [labels, setLabels] = React.useState<GmailLabel[]>([]);
+    const [labels, setLabels] = React.useState<MailLabel[]>([]);
     const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
     const [loading, setLoading] = React.useState(false);
 
@@ -136,7 +136,8 @@ export default function LabelTree({ accountId }: Props) {
             ]);
             setLabels(fetchedLabels);
             setSelectedIds(new Set(selection.selectedLabelIds));
-        } catch {
+        } catch (e) {
+            console.error('[LabelTree] Failed to load labels:', e);
             setLabels([]);
         }
         setLoading(false);
@@ -151,8 +152,8 @@ export default function LabelTree({ accountId }: Props) {
         try {
             const refreshed = await window.mailvalet.refreshLabels(accountId);
             setLabels(refreshed);
-        } catch {
-            // ignore
+        } catch (e) {
+            console.error('[LabelTree] Failed to refresh labels:', e);
         }
         setLoading(false);
     };

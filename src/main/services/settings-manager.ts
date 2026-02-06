@@ -73,7 +73,8 @@ export async function getGcpSettings(): Promise<GcpSettings> {
             clientSecret: raw.clientSecret ? decrypt(raw.clientSecret) : '',
             projectId: raw.projectId || '',
         };
-    } catch {
+    } catch (e) {
+        console.error('[Settings] Failed to decrypt GCP settings:', e);
         return { clientId: raw.clientId || '', clientSecret: '', projectId: raw.projectId || '' };
     }
 }

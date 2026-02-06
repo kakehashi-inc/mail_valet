@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Account } from '@shared/types';
+import type { Account, ImapConnectionSettings } from '@shared/types';
 
 interface AccountStoreState {
     accounts: Account[];
@@ -10,6 +10,7 @@ interface AccountStoreState {
     loadAccounts: () => Promise<void>;
     setActiveAccount: (accountId: string | null) => Promise<void>;
     addAccount: () => Promise<Account | null>;
+    addImapAccount: (settings: ImapConnectionSettings) => Promise<Account | null>;
     removeAccount: (accountId: string) => Promise<void>;
     checkConnection: () => Promise<void>;
 }
@@ -34,7 +35,8 @@ export const useAccountStore = create<AccountStoreState>((set, get) => ({
                 const connected = await window.mailvalet.getConnectionStatus(activeId);
                 set({ isConnected: connected });
             }
-        } catch {
+        } catch (e) {
+            console.error('[AccountStore] loadAccounts failed:', e);
             set({ loading: false });
         }
     },
@@ -57,7 +59,23 @@ export const useAccountStore = create<AccountStoreState>((set, get) => ({
                 await window.mailvalet.saveAppState({ lastAccountId: account.id });
             }
             return account;
-        } catch {
+        } catch (e) {
+            console.error('[AccountStore] addAccount failed:', e);
+            return null;
+        }
+    },
+
+    addImapAccount: async (settings: ImapConnectionSettings) => {
+        try {
+            const account = await window.mailvalet.addImapAccount(settings);
+            if (account) {
+                await get().loadAccounts();
+                set({ activeAccountId: account.id });
+                await window.mailvalet.saveAppState({ lastAccountId: account.id });
+            }
+            return account;
+        } catch (e) {
+            console.error('[AccountStore] addImapAccount failed:', e);
             return null;
         }
     },
@@ -83,7 +101,8 @@ export const useAccountStore = create<AccountStoreState>((set, get) => ({
         try {
             const connected = await window.mailvalet.getConnectionStatus(activeAccountId);
             set({ isConnected: connected });
-        } catch {
+        } catch (e) {
+            console.warn('[AccountStore] checkConnection failed:', e);
             set({ isConnected: false });
         }
     },
