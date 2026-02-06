@@ -31,7 +31,12 @@ function createImapClient(settings: ImapConnectionSettings): ImapFlow {
                 : settings.security === 'none'
                   ? { rejectUnauthorized: false }
                   : undefined,
-        logger: false,
+        logger: {
+            debug: () => {},
+            info: (msg: any) => console.debug('[IMAP-PROTO]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+            warn: (msg: any) => console.warn('[IMAP-PROTO]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+            error: (msg: any) => console.error('[IMAP-PROTO]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+        },
     });
 }
 
@@ -83,13 +88,23 @@ async function findTrashFolder(client: ImapFlow): Promise<string> {
     const mailboxes = await client.list();
     // Look for \Trash special use
     const trash = mailboxes.find(mb => mb.specialUse === '\\Trash');
-    if (trash) return trash.path;
+    if (trash) {
+        console.debug(`[IMAP] Trash folder found: ${trash.path} (specialUse: \\Trash)`);
+        return trash.path;
+    }
     // Fallback: common names
     const fallbacks = ['Trash', 'Deleted Items', 'Deleted Messages', 'Deleted'];
     for (const name of fallbacks) {
         const found = mailboxes.find(mb => mb.path.toLowerCase() === name.toLowerCase());
-        if (found) return found.path;
+        if (found) {
+            console.warn(`[IMAP] Trash folder found by name fallback: ${found.path}`);
+            return found.path;
+        }
     }
+    console.error(
+        '[IMAP] No Trash folder found! Available:',
+        mailboxes.map(mb => `${mb.path} (${mb.specialUse || 'no specialUse'})`).join(', ')
+    );
     return 'Trash';
 }
 
@@ -114,8 +129,12 @@ export async function fetchEmails(
         startDate.setDate(startDate.getDate() - days);
     }
 
+    // Use sentSince/sentBefore with UTC midnight dates to avoid imapflow's WITHIN extension
+    // (WITHIN converts since/before to YOUNGER/OLDER which some IMAP servers reject)
+    const sinceDateUtc = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
+    const beforeDateUtc = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1));
     const endDatePlusOne = new Date(endDate.getTime() + 86400000);
-    const searchQuery: any = { since: startDate, before: endDatePlusOne };
+    const searchQuery: any = { sentSince: sinceDateUtc, sentBefore: beforeDateUtc };
     if (fetchSettings.readFilter === 'unread') searchQuery.seen = false;
     else if (fetchSettings.readFilter === 'read') searchQuery.seen = true;
 
