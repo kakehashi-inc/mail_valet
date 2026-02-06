@@ -55,8 +55,7 @@ Loop:
 
 <project_details>
 <instruction>
-CRITICAL: You MUST read the current content of [README.md](README.md) BEFORE taking any action.
-You MUST strictly adhere to the "Development Rules" (開発ルール) section within README.md.
+CRITICAL: You MUST read [README.md](README.md) BEFORE taking any action.
 </instruction>
 <development_rules>
 - All developer-facing documents, except `README.md`, MUST be placed in the `Documents` directory.
