@@ -17,17 +17,11 @@ releaseInfo:
   releaseNotes: |
     ## New Features
 
-    - Show progress dialog with per-target message count during bulk/period delete (all modes)
-    - Unify body-part download logic between sampling and rule-mode delete
+    -
 
     ## Bug Fixes
 
-    - IMAP: Remove inappropriate fallback that fetched all emails when date-range sampling returned 0 results
-    - IMAP: Fix deadlock in rule-mode bulk delete caused by nested FETCH/DOWNLOAD commands
-    - Fix stale rule groups persisting when sampling returns 0 results
-    - Fix rule groups not rebuilding when switching fetch mode (days/range)
-    - Fix race condition causing empty rule groups when switching accounts in rule mode
-    - Fix stale from/subject groups persisting after fetch returns 0 results or fails
+    -
 
 files:
   - dist/**/*
