@@ -585,11 +585,7 @@ export async function searchAndTrashByFrom(
 
     for (let i = 0; i < fromAddresses.length; i++) {
         const fromAddr = fromAddresses[i];
-        onProgress?.({
-            current: i,
-            total: fromAddresses.length,
-            message: `Searching: ${fromAddr} (${i + 1}/${fromAddresses.length})`,
-        });
+        const label = `${i + 1}/${fromAddresses.length} ${fromAddr}`;
 
         // Build exclusion query parts
         const exclusions: string[] = [];
@@ -612,6 +608,9 @@ export async function searchAndTrashByFrom(
             totalExcluded += totalForSender - toTrashIds.length;
         }
 
+        let processed = 0;
+        onProgress?.({ current: processed, total: toTrashIds.length, message: label });
+
         // Trash in parallel batches
         const batchSize = 20;
         for (let j = 0; j < toTrashIds.length; j += batchSize) {
@@ -625,11 +624,8 @@ export async function searchAndTrashByFrom(
                 if (result.status === 'fulfilled') totalTrashed++;
                 else totalErrors++;
             }
-            onProgress?.({
-                current: i,
-                total: fromAddresses.length,
-                message: `Deleting: ${fromAddr} ${Math.min(j + batchSize, toTrashIds.length)}/${toTrashIds.length}`,
-            });
+            processed += batch.length;
+            onProgress?.({ current: processed, total: toTrashIds.length, message: label });
         }
     }
 
@@ -651,11 +647,7 @@ export async function searchAndTrashBySubject(
 
     for (let i = 0; i < subjects.length; i++) {
         const subj = subjects[i];
-        onProgress?.({
-            current: i,
-            total: subjects.length,
-            message: `Searching: "${subj}" (${i + 1}/${subjects.length})`,
-        });
+        const label = `${i + 1}/${subjects.length} ${subj}`;
 
         const exclusions: string[] = [];
         if (deleteSettings.excludeImportant) exclusions.push('-is:important');
@@ -675,6 +667,9 @@ export async function searchAndTrashBySubject(
             totalExcluded += totalForSubject - toTrashIds.length;
         }
 
+        let processed = 0;
+        onProgress?.({ current: processed, total: toTrashIds.length, message: label });
+
         const batchSize = 20;
         for (let j = 0; j < toTrashIds.length; j += batchSize) {
             const batch = toTrashIds.slice(j, j + batchSize);
@@ -687,11 +682,8 @@ export async function searchAndTrashBySubject(
                 if (result.status === 'fulfilled') totalTrashed++;
                 else totalErrors++;
             }
-            onProgress?.({
-                current: i,
-                total: subjects.length,
-                message: `Deleting: "${subj}" ${Math.min(j + batchSize, toTrashIds.length)}/${toTrashIds.length}`,
-            });
+            processed += batch.length;
+            onProgress?.({ current: processed, total: toTrashIds.length, message: label });
         }
     }
 
@@ -763,11 +755,7 @@ export async function searchAndTrashByRule(
 
     for (let i = 0; i < ruleLines.length; i++) {
         const ruleLine = ruleLines[i];
-        onProgress?.({
-            current: i,
-            total: ruleLines.length,
-            message: `Processing rule: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
-        });
+        const label = `${i + 1}/${ruleLines.length} ${ruleLine.rawText}`;
 
         // Build exclusion query parts
         const exclusions: string[] = [];
@@ -785,6 +773,9 @@ export async function searchAndTrashByRule(
         // Fetch message details and do precise regex matching
         const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
         const formatParam = hasBodyPattern ? 'format=full' : 'format=metadata&metadataHeaders=Subject';
+
+        let processed = 0;
+        onProgress?.({ current: processed, total: candidateIds.length, message: label });
 
         const matchingIds: string[] = [];
         const fetchBatchSize = 50;
@@ -813,11 +804,8 @@ export async function searchAndTrashByRule(
                 }
             }
 
-            onProgress?.({
-                current: i,
-                total: ruleLines.length,
-                message: `Checking: ${ruleLine.rawText} ${Math.min(j + fetchBatchSize, candidateIds.length)}/${candidateIds.length}`,
-            });
+            processed += batch.length;
+            onProgress?.({ current: processed, total: candidateIds.length, message: label });
         }
 
         // Trash matching messages
@@ -833,11 +821,6 @@ export async function searchAndTrashByRule(
                 if (result.status === 'fulfilled') totalTrashed++;
                 else totalErrors++;
             }
-            onProgress?.({
-                current: i,
-                total: ruleLines.length,
-                message: `Deleting: ${ruleLine.rawText} ${Math.min(j + trashBatchSize, matchingIds.length)}/${matchingIds.length}`,
-            });
         }
     }
 

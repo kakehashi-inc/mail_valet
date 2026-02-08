@@ -328,24 +328,10 @@ export async function fetchEmails(
                         });
 
                         // Download body parts
-                        if (f.bodyStructure) {
-                            try {
-                                const structParts = flattenStructure(f.bodyStructure);
-                                const bp: EmailBodyParts = { plain: '', html: '' };
-                                const plainPart = structParts.find(p => p.type === 'text/plain');
-                                const htmlPart = structParts.find(p => p.type === 'text/html');
-                                if (plainPart?.part) {
-                                    const dl = await client.download(String(f.uid), plainPart.part, { uid: true });
-                                    if (dl) bp.plain = await streamToString(dl.content);
-                                }
-                                if (htmlPart?.part) {
-                                    const dl = await client.download(String(f.uid), htmlPart.part, { uid: true });
-                                    if (dl) bp.html = await streamToString(dl.content);
-                                }
-                                bodyPartsMap[msgId] = bp;
-                            } catch (e) {
-                                console.warn(`[IMAP] Failed to fetch body for ${msgId}:`, e);
-                            }
+                        try {
+                            bodyPartsMap[msgId] = await fetchBodyPartsForMessage(client, f.uid, f.bodyStructure);
+                        } catch (e) {
+                            console.warn(`[IMAP] Failed to fetch body for ${msgId}:`, e);
                         }
 
                         // Download raw source
@@ -471,6 +457,7 @@ export async function getEmailBodyParts(accountId: string, messageId: string): P
 
 // --- Helper: flatten bodyStructure ---
 function flattenStructure(structure: any): Array<{ type: string; part?: string }> {
+    if (!structure) return [];
     const result: Array<{ type: string; part?: string }> = [];
     if (structure.type && !structure.type.startsWith('multipart/')) {
         result.push({ type: structure.type, part: structure.part });
@@ -567,11 +554,9 @@ export async function searchAndTrashByFrom(
 
         for (let i = 0; i < fromAddresses.length; i++) {
             const fromAddr = fromAddresses[i];
-            onProgress?.({
-                current: i,
-                total: fromAddresses.length,
-                message: `Searching: ${fromAddr} (${i + 1}/${fromAddresses.length})`,
-            });
+            const label = `${i + 1}/${fromAddresses.length} ${fromAddr}`;
+            let processed = 0;
+            let found = 0;
 
             for (const folder of searchableFolders) {
                 try {
@@ -579,6 +564,9 @@ export async function searchAndTrashByFrom(
                     try {
                         const allUids = await client.search({ from: fromAddr }, { uid: true });
                         if (!allUids || allUids.length === 0) continue;
+
+                        found += allUids.length;
+                        onProgress?.({ current: processed, total: found, message: label });
 
                         let toTrashUids: number[] = allUids;
                         if (deleteSettings.excludeImportant || deleteSettings.excludeStarred) {
@@ -597,6 +585,9 @@ export async function searchAndTrashByFrom(
                                 totalErrors += toTrashUids.length;
                             }
                         }
+
+                        processed += allUids.length;
+                        onProgress?.({ current: processed, total: found, message: label });
                     } finally {
                         lock.release();
                     }
@@ -604,12 +595,6 @@ export async function searchAndTrashByFrom(
                     console.error(`[IMAP] searchAndTrashByFrom error in folder ${folder}:`, e);
                 }
             }
-
-            onProgress?.({
-                current: i + 1,
-                total: fromAddresses.length,
-                message: `Done: ${fromAddr} (${i + 1}/${fromAddresses.length})`,
-            });
         }
 
         await client.logout();
@@ -642,11 +627,9 @@ export async function searchAndTrashBySubject(
 
         for (let i = 0; i < subjects.length; i++) {
             const subj = subjects[i];
-            onProgress?.({
-                current: i,
-                total: subjects.length,
-                message: `Searching: "${subj}" (${i + 1}/${subjects.length})`,
-            });
+            const label = `${i + 1}/${subjects.length} ${subj}`;
+            let processed = 0;
+            let found = 0;
 
             for (const folder of searchableFolders) {
                 try {
@@ -654,6 +637,9 @@ export async function searchAndTrashBySubject(
                     try {
                         const allUids = await client.search({ subject: subj }, { uid: true });
                         if (!allUids || allUids.length === 0) continue;
+
+                        found += allUids.length;
+                        onProgress?.({ current: processed, total: found, message: label });
 
                         let toTrashUids: number[] = allUids;
                         if (deleteSettings.excludeImportant || deleteSettings.excludeStarred) {
@@ -672,6 +658,9 @@ export async function searchAndTrashBySubject(
                                 totalErrors += toTrashUids.length;
                             }
                         }
+
+                        processed += allUids.length;
+                        onProgress?.({ current: processed, total: found, message: label });
                     } finally {
                         lock.release();
                     }
@@ -679,12 +668,6 @@ export async function searchAndTrashBySubject(
                     console.error(`[IMAP] searchAndTrashBySubject error in folder ${folder}:`, e);
                 }
             }
-
-            onProgress?.({
-                current: i + 1,
-                total: subjects.length,
-                message: `Done: "${subj}" (${i + 1}/${subjects.length})`,
-            });
         }
 
         await client.logout();
@@ -794,17 +777,14 @@ export async function searchAndTrashByRule(
 
         for (let i = 0; i < ruleLines.length; i++) {
             const ruleLine = ruleLines[i];
-            onProgress?.({
-                current: i,
-                total: ruleLines.length,
-                message: `Processing rule: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
-            });
-
-            const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
+            const label = `${i + 1}/${ruleLines.length} ${ruleLine.rawText}`;
 
             // Build IMAP SEARCH pre-filter from rule keywords
             const searchCriteria = buildImapSearchFromRule(ruleLine);
             const hasSearchCriteria = Object.keys(searchCriteria).length > 0;
+
+            let processed = 0;
+            let totalCandidates = 0;
 
             for (const folder of searchableFolders) {
                 try {
@@ -816,47 +796,65 @@ export async function searchAndTrashByRule(
                             : await client.search({}, { uid: true });
                         if (!candidateUids || candidateUids.length === 0) continue;
 
-                        // Fetch message details and do precise regex matching
-                        const matchingUids: number[] = [];
+                        // Step 1: Collect metadata (envelope, bodyStructure, flags)
+                        const fetchedMsgs: Array<{
+                            uid: number;
+                            subject: string;
+                            flags: string[];
+                            bodyStructure: any;
+                        }> = [];
                         for await (const msg of client.fetch(
                             candidateUids,
                             { envelope: true, bodyStructure: true, flags: true, uid: true },
                             { uid: true }
                         )) {
-                            const subject = msg.envelope?.subject || '';
-                            const flags = Array.from(msg.flags || new Set());
+                            fetchedMsgs.push({
+                                uid: msg.uid,
+                                subject: msg.envelope?.subject || '',
+                                flags: Array.from(msg.flags || new Set()),
+                                bodyStructure: msg.bodyStructure,
+                            });
+                        }
 
+                        totalCandidates += fetchedMsgs.length;
+                        onProgress?.({ current: processed, total: totalCandidates, message: label });
+
+                        // Step 2: For each candidate, fetch body parts and do regex matching
+                        const matchingUids: number[] = [];
+                        for (const fetched of fetchedMsgs) {
                             // Check exclusion settings
-                            if (deleteSettings.excludeImportant && flags.includes('\\Flagged')) {
+                            if (deleteSettings.excludeImportant && fetched.flags.includes('\\Flagged')) {
                                 totalExcluded++;
+                                processed++;
                                 continue;
                             }
-                            if (deleteSettings.excludeStarred && flags.includes('\\Flagged')) {
+                            if (deleteSettings.excludeStarred && fetched.flags.includes('\\Flagged')) {
                                 totalExcluded++;
+                                processed++;
                                 continue;
                             }
 
-                            if (hasBodyPattern) {
-                                try {
-                                    const bodyParts = await fetchBodyPartsForMessage(
-                                        client,
-                                        msg.uid,
-                                        msg.bodyStructure
-                                    );
-                                    if (matchesRuleLine(ruleLine, subject, bodyParts)) {
-                                        matchingUids.push(msg.uid);
-                                    }
-                                } catch {
-                                    // Skip if body fetch fails
+                            try {
+                                const bodyParts = await fetchBodyPartsForMessage(
+                                    client,
+                                    fetched.uid,
+                                    fetched.bodyStructure
+                                );
+                                if (matchesRuleLine(ruleLine, fetched.subject, bodyParts)) {
+                                    matchingUids.push(fetched.uid);
                                 }
-                            } else {
-                                if (matchesRuleLine(ruleLine, subject, { plain: '', html: '' })) {
-                                    matchingUids.push(msg.uid);
-                                }
+                            } catch (e) {
+                                console.error(`[IMAP] fetchBodyParts failed for uid ${fetched.uid}:`, e);
+                                totalErrors++;
+                            }
+
+                            processed++;
+                            if (processed % 10 === 0) {
+                                onProgress?.({ current: processed, total: totalCandidates, message: label });
                             }
                         }
 
-                        // Move matching messages to trash
+                        // Step 3: Move matching messages to trash
                         if (matchingUids.length > 0) {
                             try {
                                 await client.messageMove(matchingUids, trashPath, { uid: true });
@@ -873,12 +871,6 @@ export async function searchAndTrashByRule(
                     console.error(`[IMAP] searchAndTrashByRule error in folder ${folder}:`, e);
                 }
             }
-
-            onProgress?.({
-                current: i + 1,
-                total: ruleLines.length,
-                message: `Done: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
-            });
         }
 
         await client.logout();
@@ -891,33 +883,23 @@ export async function searchAndTrashByRule(
 
 // Helper to fetch body parts for a single message
 async function fetchBodyPartsForMessage(client: ImapFlow, uid: number, bodyStructure: any): Promise<EmailBodyParts> {
-    const parts = flattenStructure(bodyStructure);
-    let plain = '';
-    let html = '';
+    const bp: EmailBodyParts = { plain: '', html: '' };
+    if (!bodyStructure) return bp;
 
-    for (const p of parts) {
-        if (p.type === 'text/plain' && p.part) {
-            const data = await client.download(uid.toString(), p.part, { uid: true });
-            if (data?.content) {
-                const chunks: Buffer[] = [];
-                for await (const chunk of data.content) {
-                    chunks.push(chunk as Buffer);
-                }
-                plain = Buffer.concat(chunks).toString('utf-8');
-            }
-        } else if (p.type === 'text/html' && p.part) {
-            const data = await client.download(uid.toString(), p.part, { uid: true });
-            if (data?.content) {
-                const chunks: Buffer[] = [];
-                for await (const chunk of data.content) {
-                    chunks.push(chunk as Buffer);
-                }
-                html = Buffer.concat(chunks).toString('utf-8');
-            }
-        }
+    const parts = flattenStructure(bodyStructure);
+    const plainPart = parts.find(p => p.type === 'text/plain');
+    const htmlPart = parts.find(p => p.type === 'text/html');
+
+    if (plainPart?.part) {
+        const dl = await client.download(String(uid), plainPart.part, { uid: true });
+        if (dl) bp.plain = await streamToString(dl.content);
+    }
+    if (htmlPart?.part) {
+        const dl = await client.download(String(uid), htmlPart.part, { uid: true });
+        if (dl) bp.html = await streamToString(dl.content);
     }
 
-    return { plain, html };
+    return bp;
 }
 
 // --- Fetch trash emails ---

@@ -34,8 +34,11 @@ export default function App() {
     React.useEffect(() => {
         if (activeAccountId && !isDetailView && !isTrashView) {
             checkConnection();
-            loadGroupMode(activeAccountId);
-            loadCachedResult(activeAccountId);
+            // Sequential: loadCachedResult first (sets samplingResult + from/subject groups),
+            // then loadGroupMode (sets groupMode and loads ruleGroups if needed).
+            // Running in parallel causes a race where loadCachedResult's ruleGroups:[] wipes
+            // the rule groups that loadGroupMode just loaded.
+            loadCachedResult(activeAccountId).then(() => loadGroupMode(activeAccountId));
         }
     }, [activeAccountId, isDetailView, isTrashView, checkConnection, loadGroupMode, loadCachedResult]);
 

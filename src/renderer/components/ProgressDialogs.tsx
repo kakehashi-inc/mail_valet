@@ -5,6 +5,7 @@ import { useProgressStore } from '../stores/useProgressStore';
 export default function ProgressDialogs() {
     const isFetching = useEmailStore(s => s.isFetching);
     const isJudging = useEmailStore(s => s.isJudging);
+    const isDeleting = useEmailStore(s => s.isDeleting);
     const fetchProgress = useProgressStore(s => s.fetchProgress);
     const aiProgress = useProgressStore(s => s.aiProgress);
 
@@ -17,6 +18,13 @@ export default function ProgressDialogs() {
                 total={fetchProgress?.total ?? 0}
                 message={fetchProgress?.message ?? ''}
                 onCancel={() => useEmailStore.getState().cancelFetch()}
+            />
+            <ProgressDialog
+                open={isDeleting}
+                title="Deleting emails..."
+                current={fetchProgress?.current ?? 0}
+                total={fetchProgress?.total ?? 0}
+                message={fetchProgress?.message ?? ''}
             />
             <ProgressDialog
                 open={isJudging}

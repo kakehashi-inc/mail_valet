@@ -30,6 +30,7 @@ interface EmailStoreState {
     aiFilterSpam: [number, number];
     isFetching: boolean;
     isJudging: boolean;
+    isDeleting: boolean;
 
     setFetchMode: (mode: FetchMode) => void;
     setGroupMode: (mode: GroupMode, accountId?: string) => void;
@@ -201,6 +202,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     aiFilterSpam: [0, 10],
     isFetching: false,
     isJudging: false,
+    isDeleting: false,
 
     setFetchMode: mode => set({ fetchMode: mode }),
 

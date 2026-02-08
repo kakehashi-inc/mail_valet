@@ -12,6 +12,7 @@ import StatusBar from './StatusBar';
 import ConfirmDialog from './ConfirmDialog';
 import { useAccountStore } from '../stores/useAccountStore';
 import { useEmailStore } from '../stores/useEmailStore';
+import { useProgressStore } from '../stores/useProgressStore';
 import { useAppStore } from '../stores/useAppStore';
 
 export default function MainScreen() {
@@ -79,6 +80,11 @@ export default function MainScreen() {
         if (!activeAccountId) return;
 
         setStatusMessage(t('status.deleting'));
+        useEmailStore.setState({ isDeleting: true });
+        useProgressStore.setState({ fetchProgress: null });
+        const unsubscribe = window.mailvalet.onFetchProgress((progress) => {
+            useProgressStore.setState({ fetchProgress: progress });
+        });
 
         try {
             let result;
@@ -107,6 +113,10 @@ export default function MainScreen() {
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             setStatusMessage(`Delete error: ${msg}`);
+        } finally {
+            unsubscribe();
+            useEmailStore.setState({ isDeleting: false });
+            useProgressStore.setState({ fetchProgress: null });
         }
     };
 
@@ -115,6 +125,11 @@ export default function MainScreen() {
         if (!activeAccountId) return;
 
         setStatusMessage(t('status.deleting'));
+        useEmailStore.setState({ isDeleting: true });
+        useProgressStore.setState({ fetchProgress: null });
+        const unsubscribe = window.mailvalet.onFetchProgress((progress) => {
+            useProgressStore.setState({ fetchProgress: progress });
+        });
 
         try {
             const deleteSettings = await window.mailvalet.getDeleteSettings();
@@ -163,6 +178,10 @@ export default function MainScreen() {
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             setStatusMessage(`Delete error: ${msg}`);
+        } finally {
+            unsubscribe();
+            useEmailStore.setState({ isDeleting: false });
+            useProgressStore.setState({ fetchProgress: null });
         }
     };
 
