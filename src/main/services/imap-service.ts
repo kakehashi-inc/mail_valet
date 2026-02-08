@@ -545,10 +545,7 @@ export async function getEmailBodyPartsLive(
     return { plain: '', html: '' };
 }
 
-export async function getEmailRawLive(
-    settings: ImapConnectionSettings,
-    messageId: string
-): Promise<string> {
+export async function getEmailRawLive(settings: ImapConnectionSettings, messageId: string): Promise<string> {
     const { folderPath, uid } = parseImapMessageId(messageId);
     const client = createImapClient(settings);
     try {

@@ -321,10 +321,12 @@ export async function runAIJudgment(
                 results.set(msgId, judgment);
                 cache[hash] = judgment;
             } else {
-                console.error(
-                    `[Ollama] AI judgment failed for "${batch[j].msg.subject}":`,
-                    result.reason?.message || result.reason
-                );
+                if (!cancelRequested) {
+                    console.error(
+                        `[Ollama] AI judgment failed for "${batch[j].msg.subject}":`,
+                        result.reason?.message || result.reason
+                    );
+                }
                 retryItems.push(batch[j]);
             }
         }
@@ -362,6 +364,9 @@ export async function runAIJudgment(
     }
 
     abortController = null;
+    if (cancelRequested) {
+        console.info(`[Ollama] AI judgment cancelled (${results.size}/${totalMessages} completed)`);
+    }
     await saveAICache(cache);
     return results;
 }
