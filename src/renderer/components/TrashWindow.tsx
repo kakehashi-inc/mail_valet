@@ -61,6 +61,9 @@ export default function TrashWindow() {
     );
 
     React.useEffect(() => {
+        const unsubscribe = window.mailvalet.onFetchProgress(progress => {
+            useProgressStore.setState({ fetchProgress: progress });
+        });
         window.mailvalet.getTrashData().then(d => {
             setData(d);
             if (d) {
@@ -75,9 +78,11 @@ export default function TrashWindow() {
                     })
                     .finally(() => {
                         setFetchingTrash(false);
+                        useProgressStore.setState({ fetchProgress: null });
                     });
             }
         });
+        return unsubscribe;
     }, []);
 
     const handleSelectMessage = async (msg: EmailMessage) => {

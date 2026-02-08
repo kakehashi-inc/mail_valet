@@ -4,12 +4,14 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from 'react-i18next';
 import { useAccountStore } from '../stores/useAccountStore';
 import { useEmailStore } from '../stores/useEmailStore';
+import { useAppStore } from '../stores/useAppStore';
 import type { FetchMode } from '@shared/types';
 
 export default function FetchControls() {
     const { t } = useTranslation();
     const { activeAccountId } = useAccountStore();
     const { samplingMeta, fetchMode, setFetchMode, loadCachedResult, fetchEmails, isFetching } = useEmailStore();
+    const { setStatusMessage } = useAppStore();
     const [startDate, setStartDate] = React.useState('');
     const [endDate, setEndDate] = React.useState('');
 
@@ -31,10 +33,16 @@ export default function FetchControls() {
 
     const handleFetch = async () => {
         if (!activeAccountId) return;
-        if (fetchMode === 'range' && startDate && endDate) {
-            await fetchEmails(activeAccountId, startDate, endDate, false);
-        } else {
-            await fetchEmails(activeAccountId, undefined, undefined, true);
+        try {
+            if (fetchMode === 'range' && startDate && endDate) {
+                await fetchEmails(activeAccountId, startDate, endDate, false);
+            } else {
+                await fetchEmails(activeAccountId, undefined, undefined, true);
+            }
+        } catch (e: unknown) {
+            if (e instanceof Error && e.message === 'Fetch cancelled') return;
+            const msg = e instanceof Error ? e.message : String(e);
+            setStatusMessage(`Fetch error: ${msg}`);
         }
     };
 

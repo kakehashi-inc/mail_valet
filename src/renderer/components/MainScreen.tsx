@@ -47,10 +47,16 @@ export default function MainScreen() {
     const handleRefetch = async () => {
         setRefetchDialogMessage(null);
         if (!activeAccountId) return;
-        if (fetchMode === 'range' && samplingMeta) {
-            await fetchEmails(activeAccountId, samplingMeta.startDate, samplingMeta.endDate, false);
-        } else {
-            await fetchEmails(activeAccountId, undefined, undefined, true);
+        try {
+            if (fetchMode === 'range' && samplingMeta) {
+                await fetchEmails(activeAccountId, samplingMeta.startDate, samplingMeta.endDate, false);
+            } else {
+                await fetchEmails(activeAccountId, undefined, undefined, true);
+            }
+        } catch (e: unknown) {
+            if (e instanceof Error && e.message === 'Fetch cancelled') return;
+            const msg = e instanceof Error ? e.message : String(e);
+            setStatusMessage(`Fetch error: ${msg}`);
         }
     };
 

@@ -381,10 +381,11 @@ export async function fetchEmails(
         const bodyPartsMap: Record<string, EmailBodyParts> = {};
         const rawBodiesMap: Record<string, string> = {};
         const batchSize = 10;
+        let fetchErrors = 0;
         for (let i = 0; i < allMessageIds.length; i += batchSize) {
             const batch = allMessageIds.slice(i, i + batchSize);
-            const [fullResults, rawResults] = await Promise.all([
-                Promise.all(
+            const [fullSettled, rawSettled] = await Promise.all([
+                Promise.allSettled(
                     batch.map(id =>
                         gmailFetch(
                             options.accountId,
@@ -396,7 +397,7 @@ export async function fetchEmails(
                         )
                     )
                 ),
-                Promise.all(
+                Promise.allSettled(
                     batch.map(id =>
                         gmailFetch(
                             options.accountId,
@@ -409,18 +410,27 @@ export async function fetchEmails(
                     )
                 ),
             ]);
-            for (const msg of fullResults) {
-                messages.push(parseMessage(msg));
-                bodyPartsMap[msg.id] = extractBodyParts(msg.payload || {});
+            for (const r of fullSettled) {
+                if (r.status === 'fulfilled') {
+                    messages.push(parseMessage(r.value));
+                    bodyPartsMap[r.value.id] = extractBodyParts(r.value.payload || {});
+                } else {
+                    fetchErrors++;
+                }
             }
-            for (const msg of rawResults) {
-                rawBodiesMap[msg.id] = msg.raw ? decodeBase64Url(msg.raw) : '';
+            for (const r of rawSettled) {
+                if (r.status === 'fulfilled' && r.value.id) {
+                    rawBodiesMap[r.value.id] = r.value.raw ? decodeBase64Url(r.value.raw) : '';
+                }
             }
             onProgress?.({
-                current: messages.length,
+                current: i + batch.length,
                 total: totalToFetch,
-                message: `Fetched ${messages.length}/${totalToFetch} messages`,
+                message: `Fetched ${messages.length}/${totalToFetch} messages${fetchErrors > 0 ? ` (${fetchErrors} errors)` : ''}`,
             });
+        }
+        if (fetchErrors > 0) {
+            console.warn(`[Gmail] fetchEmails: ${fetchErrors} message(s) failed to fetch (403/rate limit)`);
         }
 
         const periodDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));

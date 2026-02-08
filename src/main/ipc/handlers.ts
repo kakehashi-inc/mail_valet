@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, dialog } from 'electron';
+import { ipcMain, BrowserWindow, dialog, type WebContents } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import * as settingsManager from '../services/settings-manager';
 import * as accountManager from '../services/account-manager';
@@ -69,6 +69,45 @@ function throttledProgress(channel: string, intervalMs = 500) {
                         if (pending !== null && mainWindow && !mainWindow.isDestroyed()) {
                             lastSent = Date.now();
                             mainWindow.webContents.send(channel, pending);
+                            pending = null;
+                        }
+                    },
+                    intervalMs - (now - lastSent)
+                );
+            }
+        }
+    };
+}
+
+/**
+ * Variant of throttledProgress that sends events to a specific WebContents
+ * (e.g. a child window) instead of mainWindow.
+ * If the target is destroyed mid-operation, events are silently dropped
+ * (never falls back to mainWindow to avoid cross-window pollution).
+ */
+function throttledProgressTo(channel: string, target: WebContents, intervalMs = 500) {
+    let lastSent = 0;
+    let pending: unknown = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (progress: unknown) => {
+        if (target.isDestroyed()) return;
+        const now = Date.now();
+        if (now - lastSent >= intervalMs) {
+            lastSent = now;
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            target.send(channel, progress);
+        } else {
+            pending = progress;
+            if (!timer) {
+                timer = setTimeout(
+                    () => {
+                        timer = null;
+                        if (pending !== null && !target.isDestroyed()) {
+                            lastSent = Date.now();
+                            target.send(channel, pending);
                             pending = null;
                         }
                     },
@@ -526,8 +565,8 @@ export function registerAllIpcHandlers() {
         return trashWindowData.get(win.id) || null;
     });
 
-    ipcMain.handle(IPC_CHANNELS.TRASH_FETCH, async (_e, accountId: string) => {
-        const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+    ipcMain.handle(IPC_CHANNELS.TRASH_FETCH, async (e, accountId: string) => {
+        const onProgress = throttledProgressTo(IPC_CHANNELS.EVENT_FETCH_PROGRESS, e.sender);
         const provider = await getAccountProvider(accountId);
         if (provider === 'imap') {
             const imapSettings = await requireImapSettings(accountId);
@@ -537,8 +576,8 @@ export function registerAllIpcHandlers() {
         return gmailService.fetchTrashEmails(accountId, gcpSettings.clientId, gcpSettings.clientSecret, onProgress);
     });
 
-    ipcMain.handle(IPC_CHANNELS.TRASH_EMPTY, async (_e, accountId: string): Promise<EmptyTrashResult> => {
-        const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+    ipcMain.handle(IPC_CHANNELS.TRASH_EMPTY, async (e, accountId: string): Promise<EmptyTrashResult> => {
+        const onProgress = throttledProgressTo(IPC_CHANNELS.EVENT_FETCH_PROGRESS, e.sender);
         const provider = await getAccountProvider(accountId);
         if (provider === 'imap') {
             const imapSettings = await requireImapSettings(accountId);
@@ -550,8 +589,8 @@ export function registerAllIpcHandlers() {
 
     ipcMain.handle(
         IPC_CHANNELS.TRASH_DELETE_SELECTED,
-        async (_e, accountId: string, messageIds: string[]): Promise<EmptyTrashResult> => {
-            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+        async (e, accountId: string, messageIds: string[]): Promise<EmptyTrashResult> => {
+            const onProgress = throttledProgressTo(IPC_CHANNELS.EVENT_FETCH_PROGRESS, e.sender);
             const provider = await getAccountProvider(accountId);
             if (provider === 'imap') {
                 const imapSettings = await requireImapSettings(accountId);
