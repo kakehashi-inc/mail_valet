@@ -79,7 +79,6 @@ yarn dev
 
 ### ビルド/配布
 
-- 全プラットフォーム: `yarn dist`
 - Windows: `yarn dist:win`
 - macOS: `yarn dist:mac`
 - Linux: `yarn dist:linux`
@@ -105,8 +104,8 @@ src/
 │   └── utils/             # 各種ユーティリティ
 ├── preload/               # renderer へ安全にAPIをブリッジ
 ├── renderer/              # React + MUI UI
-├── shared/                # 型定義・定数(Default設定/保存パス)
-└── public/                # アイコン等
+└── shared/                # 型定義・定数(Default設定/保存パス)
+public/                    # アイコン等
 ```
 
 ### 使用技術
@@ -120,6 +119,6 @@ src/
 
 ### Windows用アイコンの作成
 
-```exec
+```bash
 magick public/icon.png -define icon:auto-resize=256,128,96,64,48,32,24,16 public/icon.ico
 ```

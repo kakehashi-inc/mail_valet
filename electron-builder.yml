@@ -17,11 +17,13 @@ releaseInfo:
   releaseNotes: |
     ## New Features
 
-    - nothing
+    - Added rule-based grouping functionality.
+    - Added functions such as displaying and deleting the trash bin.
+    - Improved overall stability.
 
     ## Bug Fixes
 
-    - nothing
+    - Fixed various bugs that existed.
 
 files:
   - dist/**/*

@@ -1,6 +1,6 @@
 {
   "name": "mail-valet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A cleaning app that samples Gmail messages and moves them to the trash by sender",
   "main": "dist/main/index.js",
   "engines": {

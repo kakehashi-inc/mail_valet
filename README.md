@@ -79,7 +79,6 @@ DevTools during development:
 
 ### Build / Distribution
 
-- All platforms: `yarn dist`
 - Windows: `yarn dist:win`
 - macOS: `yarn dist:mac`
 - Linux: `yarn dist:linux`
@@ -105,8 +104,8 @@ src/
 │   └── utils/             # Utilities
 ├── preload/               # Safely bridges APIs to the renderer
 ├── renderer/              # React + MUI UI
-├── shared/                # Type definitions & constants (defaults / storage paths)
-└── public/                # Icons, etc.
+└── shared/                # Type definitions & constants (defaults / storage paths)
+public/                    # Icons, etc.
 ```
 
 ### Technologies Used
