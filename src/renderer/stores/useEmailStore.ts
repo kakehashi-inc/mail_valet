@@ -6,11 +6,10 @@ import type {
     FromGroup,
     SubjectGroup,
     GroupMode,
-    FetchProgress,
-    AIProgress,
     AIJudgment,
     EmailMessage,
 } from '@shared/types';
+import { useProgressStore } from './useProgressStore';
 
 type SortKey = 'count' | 'frequency' | 'name' | 'date';
 
@@ -27,8 +26,6 @@ interface EmailStoreState {
     searchQuery: string;
     aiFilterMarketing: [number, number];
     aiFilterSpam: [number, number];
-    fetchProgress: FetchProgress | null;
-    aiProgress: AIProgress | null;
     isFetching: boolean;
     isJudging: boolean;
 
@@ -174,8 +171,6 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     searchQuery: '',
     aiFilterMarketing: [0, 10],
     aiFilterSpam: [0, 10],
-    fetchProgress: null,
-    aiProgress: null,
     isFetching: false,
     isJudging: false,
 
@@ -224,9 +219,10 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
 
     fetchEmails: async (accountId, startDate, endDate, useDays) => {
         const mode: FetchMode = useDays ? 'days' : 'range';
-        set({ isFetching: true, fetchProgress: null, fetchMode: mode });
+        set({ isFetching: true, fetchMode: mode });
+        useProgressStore.setState({ fetchProgress: null });
         const unsubscribe = window.mailvalet.onFetchProgress(progress => {
-            set({ fetchProgress: progress });
+            useProgressStore.setState({ fetchProgress: progress });
         });
         try {
             const result = await window.mailvalet.fetchEmails({ accountId, startDate, endDate, useDays });
@@ -239,13 +235,14 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
                 subjectGroups: applySortSubject(subjGroups, get().sortKey, get().sortAsc),
                 selectedGroupKeys: new Set(),
                 isFetching: false,
-                fetchProgress: null,
             });
+            useProgressStore.setState({ fetchProgress: null });
             // Reload meta
             const cached = await window.mailvalet.getCachedResult(accountId, mode);
             if (cached) set({ samplingMeta: cached.meta });
         } catch (e) {
-            set({ isFetching: false, fetchProgress: null });
+            set({ isFetching: false });
+            useProgressStore.setState({ fetchProgress: null });
             // If cancelled, silently absorb
             if (e instanceof Error && e.message === 'Fetch cancelled') return;
             throw e;
@@ -256,7 +253,8 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
 
     cancelFetch: async () => {
         await window.mailvalet.cancelFetch();
-        set({ isFetching: false, fetchProgress: null });
+        set({ isFetching: false });
+        useProgressStore.setState({ fetchProgress: null });
     },
 
     setSortKey: key => {
@@ -299,9 +297,10 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     runAIJudgment: async accountId => {
         const { samplingResult, fetchMode } = get();
         if (!samplingResult) return;
-        set({ isJudging: true, aiProgress: null });
+        set({ isJudging: true });
+        useProgressStore.setState({ aiProgress: null });
         const unsubscribe = window.mailvalet.onAIProgress(progress => {
-            set({ aiProgress: progress });
+            useProgressStore.setState({ aiProgress: progress });
         });
         try {
             const allIds = samplingResult.messages.map(m => m.id);
@@ -309,14 +308,16 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
             // Reload cached result to get updated AI scores
             await get().loadCachedResult(accountId, fetchMode);
         } finally {
-            set({ isJudging: false, aiProgress: null });
+            set({ isJudging: false });
+            useProgressStore.setState({ aiProgress: null });
             unsubscribe();
         }
     },
 
     cancelAIJudgment: async () => {
         await window.mailvalet.cancelAIJudgment();
-        set({ isJudging: false, aiProgress: null });
+        set({ isJudging: false });
+        useProgressStore.setState({ aiProgress: null });
     },
 
     updateAIScores: judgments => {
@@ -392,14 +393,14 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
         });
     },
 
-    clear: () =>
+    clear: () => {
         set({
             samplingResult: null,
             samplingMeta: null,
             fromGroups: [],
             subjectGroups: [],
             selectedGroupKeys: new Set(),
-            fetchProgress: null,
-            aiProgress: null,
-        }),
+        });
+        useProgressStore.setState({ fetchProgress: null, aiProgress: null });
+    },
 }));

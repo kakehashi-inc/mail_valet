@@ -7,7 +7,7 @@ import TitleBar from './components/TitleBar';
 import MainScreen from './components/MainScreen';
 import DetailWindow from './components/DetailWindow';
 import SettingsDialog from './components/SettingsDialog';
-import ProgressDialog from './components/ProgressDialog';
+import ProgressDialogs from './components/ProgressDialogs';
 import { useAppStore } from './stores/useAppStore';
 import { useAccountStore } from './stores/useAccountStore';
 import { useEmailStore } from './stores/useEmailStore';
@@ -16,7 +16,7 @@ export default function App() {
     const { i18n } = useTranslation();
     const { info, isDetailView, settingsOpen, setSettingsOpen, initialize } = useAppStore();
     const { activeAccountId, loadAccounts } = useAccountStore();
-    const { loadCachedResult, loadGroupMode, isFetching, fetchProgress, isJudging, aiProgress } = useEmailStore();
+    const { loadCachedResult, loadGroupMode } = useEmailStore();
 
     React.useEffect(() => {
         initialize().then(() => {
@@ -66,22 +66,7 @@ export default function App() {
                 <TitleBar info={info} onOpenSettings={() => setSettingsOpen(true)} />
                 <MainScreen />
                 <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-                <ProgressDialog
-                    open={isFetching}
-                    title="Fetching emails..."
-                    current={fetchProgress?.current ?? 0}
-                    total={fetchProgress?.total ?? 0}
-                    message={fetchProgress?.message ?? ''}
-                    onCancel={() => useEmailStore.getState().cancelFetch()}
-                />
-                <ProgressDialog
-                    open={isJudging}
-                    title="AI Judgment..."
-                    current={aiProgress?.current ?? 0}
-                    total={aiProgress?.total ?? 0}
-                    message={aiProgress?.message ?? ''}
-                    onCancel={() => useEmailStore.getState().cancelAIJudgment()}
-                />
+                <ProgressDialogs />
             </Box>
         </ThemeProvider>
     );

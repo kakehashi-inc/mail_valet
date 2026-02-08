@@ -203,7 +203,7 @@ function buildPrompt(
     }
 
     lines.push('');
-    lines.push('Respond ONLY with this JSON, nothing else: {"marketing":<0-10>,"spam":<0-10>}');
+    lines.push('Respond ONLY in this format, nothing else: marketing=N,spam=N (N is an integer 0-10)');
 
     return lines.join('\n');
 }
@@ -233,14 +233,19 @@ async function judgeEmail(
 
     if (!response.ok) throw new Error(`Ollama API error: ${response.status}`);
     const data = (await response.json()) as any;
-    const responseText = data.response || '';
+    const responseText: string = data.response || '';
 
-    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) throw new Error('Failed to parse AI response');
-    const parsed = JSON.parse(jsonMatch[0]);
+    const mMatch = responseText.match(/marketing\s*[=:]\s*(\d+)/i);
+    const sMatch = responseText.match(/spam\s*[=:]\s*(\d+)/i);
+    if (!mMatch || !sMatch) {
+        console.warn(`[Ollama] Failed to extract scores from AI response: ${responseText.substring(0, 200)}`);
+        throw new Error('Failed to parse AI response');
+    }
+    const marketing = Number(mMatch[1]);
+    const spam = Number(sMatch[1]);
     return {
-        marketing: Math.min(10, Math.max(0, Math.round(Number(parsed.marketing) || 0))),
-        spam: Math.min(10, Math.max(0, Math.round(Number(parsed.spam) || 0))),
+        marketing: Math.min(10, Math.max(0, Math.round(marketing))),
+        spam: Math.min(10, Math.max(0, Math.round(spam))),
         judgedAt: new Date().toISOString(),
     };
 }
@@ -269,17 +274,21 @@ export async function runAIJudgment(
     for (let i = 0; i < messages.length; i++) {
         if (cancelRequested) break;
         const msg = messages[i];
-        const bodyParts = await getBodyParts(msg.id);
-        const raw = await getRaw(msg.id);
-        const attachments = parseAttachmentsFromRaw(raw);
-        const selected = selectBody(bodyParts);
-        const truncated = selected.content.substring(0, MAX_BODY_LENGTH);
-        const hash = computeContentHash(msg.subject, truncated, allowedLanguages, attachments);
-        if (cache[hash]) {
-            results.set(msg.id, cache[hash]);
-        } else {
-            const prompt = buildPrompt(msg.subject, truncated, selected.type, allowedLanguages, attachments);
-            toProcess.push({ msg, hash, prompt });
+        try {
+            const bodyParts = await getBodyParts(msg.id);
+            const raw = await getRaw(msg.id);
+            const attachments = parseAttachmentsFromRaw(raw);
+            const selected = selectBody(bodyParts);
+            const truncated = selected.content.substring(0, MAX_BODY_LENGTH);
+            const hash = computeContentHash(msg.subject, truncated, allowedLanguages, attachments);
+            if (cache[hash]) {
+                results.set(msg.id, cache[hash]);
+            } else {
+                const prompt = buildPrompt(msg.subject, truncated, selected.type, allowedLanguages, attachments);
+                toProcess.push({ msg, hash, prompt });
+            }
+        } catch (e) {
+            console.error(`[Ollama] Failed to prepare "${msg.subject}":`, e instanceof Error ? e.message : e);
         }
         onProgress?.({
             current: i + 1,
@@ -294,6 +303,7 @@ export async function runAIJudgment(
     let processed = 0;
 
     const concurrency = Math.max(1, settings.concurrency);
+    let failedCount = 0;
     for (let i = 0; i < toProcess.length; i += concurrency) {
         if (cancelRequested) break;
         const batch = toProcess.slice(i, i + concurrency);
@@ -303,19 +313,57 @@ export async function runAIJudgment(
                 return { msgId: msg.id, hash, judgment };
             })
         );
-        for (const result of batchResults) {
+        const retryItems: { msg: EmailMessage; hash: string; prompt: string }[] = [];
+        for (let j = 0; j < batchResults.length; j++) {
+            const result = batchResults[j];
             if (result.status === 'fulfilled') {
                 const { msgId, hash, judgment } = result.value;
                 results.set(msgId, judgment);
                 cache[hash] = judgment;
+            } else {
+                console.error(
+                    `[Ollama] AI judgment failed for "${batch[j].msg.subject}":`,
+                    result.reason?.message || result.reason
+                );
+                retryItems.push(batch[j]);
+            }
+        }
+        // Retry failed items once
+        if (retryItems.length > 0 && !cancelRequested) {
+            const retryResults = await Promise.allSettled(
+                retryItems.map(async ({ msg, hash, prompt }) => {
+                    const judgment = await judgeEmail(
+                        settings.host,
+                        settings.model,
+                        settings.timeout,
+                        prompt,
+                        signal
+                    );
+                    return { msgId: msg.id, hash, judgment };
+                })
+            );
+            for (let j = 0; j < retryResults.length; j++) {
+                const result = retryResults[j];
+                if (result.status === 'fulfilled') {
+                    const { msgId, hash, judgment } = result.value;
+                    results.set(msgId, judgment);
+                    cache[hash] = judgment;
+                } else {
+                    failedCount++;
+                    console.error(
+                        `[Ollama] AI judgment retry failed for "${retryItems[j].msg.subject}":`,
+                        result.reason?.message || result.reason
+                    );
+                }
             }
         }
         processed += batch.length;
         const done = cachedCount + Math.min(processed, toProcess.length);
+        const failMsg = failedCount > 0 ? ` (${failedCount} failed)` : '';
         onProgress?.({
             current: done,
             total: totalMessages,
-            message: `AI judgment: ${done}/${totalMessages}`,
+            message: `AI judgment: ${done}/${totalMessages}${failMsg}`,
         });
     }
 

@@ -33,6 +33,43 @@ export function setMainWindowRef(win: BrowserWindow | null) {
     mainWindow = win;
 }
 
+/**
+ * Throttle IPC progress events to avoid flooding the renderer (prevents React "Maximum update depth exceeded").
+ * Always delivers the last call (trailing) so the final state is never lost.
+ */
+function throttledProgress(channel: string, intervalMs = 500) {
+    let lastSent = 0;
+    let pending: unknown = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (progress: unknown) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        const now = Date.now();
+        if (now - lastSent >= intervalMs) {
+            lastSent = now;
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+            mainWindow.webContents.send(channel, progress);
+        } else {
+            pending = progress;
+            if (!timer) {
+                timer = setTimeout(
+                    () => {
+                        timer = null;
+                        if (pending !== null && mainWindow && !mainWindow.isDestroyed()) {
+                            lastSent = Date.now();
+                            mainWindow.webContents.send(channel, pending);
+                            pending = null;
+                        }
+                    },
+                    intervalMs - (now - lastSent)
+                );
+            }
+        }
+    };
+}
+
 async function getAccountProvider(accountId: string): Promise<MailProviderId> {
     const accounts = await accountManager.getAllAccounts();
     const account = accounts.find(a => a.id === accountId);
@@ -178,11 +215,7 @@ export function registerAllIpcHandlers() {
     ipcMain.handle(IPC_CHANNELS.MAIL_FETCH_EMAILS, async (_e, options: FetchEmailsOptions) => {
         const provider = await getAccountProvider(options.accountId);
         const labelSelection = await accountManager.getSelectedLabels(options.accountId);
-        const onProgress = (progress: any) => {
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send(IPC_CHANNELS.EVENT_FETCH_PROGRESS, progress);
-            }
-        };
+        const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
         if (provider === 'imap') {
             const imapSettings = await requireImapSettings(options.accountId);
             return imapService.fetchEmails(options, imapSettings, labelSelection.selectedLabelIds, onProgress);
@@ -220,11 +253,7 @@ export function registerAllIpcHandlers() {
         IPC_CHANNELS.MAIL_BULK_DELETE_BY_FROM,
         async (_e, accountId: string, fromAddresses: string[]): Promise<DeleteResult> => {
             const deleteSettings = await settingsManager.getDeleteSettings();
-            const onProgress = (progress: any) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send(IPC_CHANNELS.EVENT_FETCH_PROGRESS, progress);
-                }
-            };
+            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
             const provider = await getAccountProvider(accountId);
             if (provider === 'imap') {
                 const imapSettings = await requireImapSettings(accountId);
@@ -244,11 +273,7 @@ export function registerAllIpcHandlers() {
     ipcMain.handle(
         IPC_CHANNELS.MAIL_DELETE_BY_MESSAGE_IDS,
         async (_e, accountId: string, messageIds: string[]): Promise<DeleteResult> => {
-            const onProgress = (progress: any) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send(IPC_CHANNELS.EVENT_FETCH_PROGRESS, progress);
-                }
-            };
+            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
             const provider = await getAccountProvider(accountId);
             if (provider === 'imap') {
                 const imapSettings = await requireImapSettings(accountId);
@@ -268,11 +293,7 @@ export function registerAllIpcHandlers() {
         IPC_CHANNELS.MAIL_BULK_DELETE_BY_SUBJECT,
         async (_e, accountId: string, subjects: string[]): Promise<DeleteResult> => {
             const deleteSettings = await settingsManager.getDeleteSettings();
-            const onProgress = (progress: any) => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send(IPC_CHANNELS.EVENT_FETCH_PROGRESS, progress);
-                }
-            };
+            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
             const provider = await getAccountProvider(accountId);
             if (provider === 'imap') {
                 const imapSettings = await requireImapSettings(accountId);
@@ -312,11 +333,8 @@ export function registerAllIpcHandlers() {
                 provider === 'imap'
                     ? (msgId: string) => imapService.getEmailRaw(accountId, msgId)
                     : (msgId: string) => gmailService.getEmailRaw(accountId, msgId);
-            const judgments = await ollamaService.runAIJudgment(targetMessages, getBodyParts, getRaw, progress => {
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send(IPC_CHANNELS.EVENT_AI_PROGRESS, progress);
-                }
-            });
+            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_AI_PROGRESS);
+            const judgments = await ollamaService.runAIJudgment(targetMessages, getBodyParts, getRaw, onProgress);
             await gmailService.updateCachedResultWithAI(accountId, fetchMode, judgments);
         }
     );
