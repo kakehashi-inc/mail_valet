@@ -10,7 +10,8 @@
       "Bash(glob:*)",
       "Bash(ls:*)",
       "Bash(yarn lint)",
-      "Bash(yarn format:*)"
+      "Bash(yarn format:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []

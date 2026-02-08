@@ -280,6 +280,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
                 samplingResult: result,
                 fromGroups: applySort(groups, get().sortKey, get().sortAsc),
                 subjectGroups: applySortSubject(subjGroups, get().sortKey, get().sortAsc),
+                ruleGroups: [],
                 selectedGroupKeys: new Set(),
                 isFetching: false,
             });
@@ -287,6 +288,10 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
             // Reload meta
             const cached = await window.mailvalet.getCachedResult(accountId, mode);
             if (cached) set({ samplingMeta: cached.meta });
+            // Rebuild rule groups if currently in rule mode
+            if (get().groupMode === 'rule') {
+                await get().loadRuleGroups(accountId);
+            }
         } catch (e) {
             set({ isFetching: false });
             useProgressStore.setState({ fetchProgress: null });

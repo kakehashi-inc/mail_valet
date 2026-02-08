@@ -242,7 +242,6 @@ export async function fetchEmails(
     // (WITHIN converts since/before to YOUNGER/OLDER which some IMAP servers reject)
     const sinceDateUtc = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()));
     const beforeDateUtc = new Date(Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1));
-    const endDatePlusOne = new Date(endDate.getTime() + 86400000);
     const searchQuery: any = { sentSince: sinceDateUtc, sentBefore: beforeDateUtc };
     if (fetchSettings.readFilter === 'unread') searchQuery.seen = false;
     else if (fetchSettings.readFilter === 'read') searchQuery.seen = true;
@@ -270,29 +269,14 @@ export async function fetchEmails(
             try {
                 const lock = await client.getMailboxLock(folderPath);
                 try {
-                    const mb = client.mailbox;
-                    const totalExists = mb ? mb.exists || 0 : 0;
-                    let uids: number[] | false = await client.search(searchQuery, { uid: true });
-                    let clientSideDateFilter = false;
-
-                    // Fallback: server may not support SINCE/BEFORE search
-                    if ((!uids || uids.length === 0) && totalExists > 0) {
-                        console.warn(
-                            `[IMAP] ${folderPath}: Date search returned 0/${totalExists}, using client-side date filter`
-                        );
-                        uids = await client.search({}, { uid: true });
-                        clientSideDateFilter = true;
-                    }
+                    const uids: number[] | false = await client.search(searchQuery, { uid: true });
 
                     if (!uids || uids.length === 0) {
                         console.debug(`[IMAP] ${folderPath}: 0 messages found`);
                         continue;
                     }
 
-                    // Sort descending (higher UID = more recent) for client-side fallback
-                    const targetUids = clientSideDateFilter
-                        ? [...uids].sort((a, b) => b - a)
-                        : uids.slice(0, maxResults - messages.length);
+                    const targetUids = uids.slice(0, maxResults - messages.length);
                     console.debug(`[IMAP] ${folderPath}: ${uids.length} found, fetching ${targetUids.length}`);
                     onProgress?.({
                         current: messages.length,
@@ -313,14 +297,9 @@ export async function fetchEmails(
                         { uid: true }
                     )) {
                         if (messages.length + fetched.length >= maxResults) break;
-                        const env = msg.envelope;
-                        if (clientSideDateFilter && env?.date) {
-                            const msgDate = new Date(env.date);
-                            if (msgDate < startDate || msgDate >= endDatePlusOne) continue;
-                        }
                         fetched.push({
                             uid: msg.uid,
-                            envelope: env,
+                            envelope: msg.envelope,
                             flags: msg.flags || new Set(),
                             bodyStructure: msg.bodyStructure,
                         });
