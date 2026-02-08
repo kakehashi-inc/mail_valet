@@ -16,7 +16,7 @@ import { useEmailStore } from './stores/useEmailStore';
 export default function App() {
     const { i18n } = useTranslation();
     const { info, isDetailView, isTrashView, settingsOpen, setSettingsOpen, initialize } = useAppStore();
-    const { activeAccountId, loadAccounts } = useAccountStore();
+    const { activeAccountId, loadAccounts, checkConnection } = useAccountStore();
     const { loadCachedResult, loadGroupMode } = useEmailStore();
 
     React.useEffect(() => {
@@ -33,10 +33,11 @@ export default function App() {
 
     React.useEffect(() => {
         if (activeAccountId && !isDetailView && !isTrashView) {
+            checkConnection();
             loadGroupMode(activeAccountId);
             loadCachedResult(activeAccountId);
         }
-    }, [activeAccountId, isDetailView, isTrashView, loadGroupMode, loadCachedResult]);
+    }, [activeAccountId, isDetailView, isTrashView, checkConnection, loadGroupMode, loadCachedResult]);
 
     const muiTheme = React.useMemo(
         () =>

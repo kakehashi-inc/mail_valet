@@ -1,4 +1,47 @@
-import type { EmailMessage, EmailBodyParts, RuleLine, RulePattern, AccountRules, RuleGroup } from '../../shared/types';
+import type {
+    EmailMessage,
+    EmailBodyParts,
+    RuleLine,
+    RulePattern,
+    AccountRules,
+    RuleGroup,
+    RulePatternField,
+} from '../../shared/types';
+
+/**
+ * Extract plain-text keywords from a regex string for use as search pre-filter.
+ * Returns words of 2+ characters with regex metacharacters removed.
+ */
+export function extractKeywordsFromRegex(regex: string): string[] {
+    let cleaned = regex;
+    // Replace .* and .+ wildcards with word separators
+    cleaned = cleaned.replace(/\.\*/g, ' ');
+    cleaned = cleaned.replace(/\.\+/g, ' ');
+    // Remove character classes entirely: [Aa], [0-9], etc.
+    cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
+    // Remove regex category escapes: \d, \w, \s, etc.
+    cleaned = cleaned.replace(/\\[dDwWsSbB]/g, ' ');
+    // Unescape literal characters: \. → . , \- → - , \( → ( , etc.
+    cleaned = cleaned.replace(/\\(.)/g, '$1');
+    // Remove remaining regex metacharacters
+    cleaned = cleaned.replace(/[\\^$.|?*+(){}]/g, ' ');
+    return cleaned.split(/\s+/).filter(w => w.length >= 2);
+}
+
+/**
+ * Extract search keywords grouped by field from a RuleLine.
+ * Used by both IMAP and Gmail to build pre-filter queries.
+ */
+export function extractSearchKeywords(ruleLine: RuleLine): { field: RulePatternField; keywords: string[] }[] {
+    const result: { field: RulePatternField; keywords: string[] }[] = [];
+    for (const pattern of ruleLine.patterns) {
+        const keywords = extractKeywordsFromRegex(pattern.regex);
+        if (keywords.length > 0) {
+            result.push({ field: pattern.field, keywords });
+        }
+    }
+    return result;
+}
 
 /**
  * Check if a single pattern matches the given content.

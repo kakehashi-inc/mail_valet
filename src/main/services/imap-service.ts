@@ -1,3 +1,5 @@
+import net from 'net';
+import { resolve4, resolve6 } from 'dns/promises';
 import { ImapFlow } from 'imapflow';
 import type {
     ImapConnectionSettings,
@@ -14,7 +16,7 @@ import type {
     RuleLine,
     EmptyTrashResult,
 } from '../../shared/types';
-import { matchesRuleLine } from './rule-matcher';
+import { matchesRuleLine, extractSearchKeywords } from './rule-matcher';
 import { getSamplingResultPath, getSamplingMetaPath } from '../../shared/constants';
 import { writeJsonFile } from './file-manager';
 import { buildFromGroups, getCachedResult } from './gmail-service';
@@ -28,6 +30,85 @@ interface ImapMailbox {
     name: string;
     specialUse?: string;
 }
+
+// ---------------------------------------------------------------------------
+// TCP reachability probe (single-stack, bypasses Happy Eyeballs)
+// ---------------------------------------------------------------------------
+
+const IPV4_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+const IPV6_RE = /^[0-9a-fA-F:]+$/;
+
+async function resolveHost(host: string): Promise<string | null> {
+    if (IPV4_RE.test(host) || IPV6_RE.test(host)) return host;
+    // IPv4 優先、なければ IPv6
+    try {
+        const v4 = await resolve4(host);
+        if (v4.length > 0) return v4[0];
+    } catch {
+        // ignore
+    }
+    try {
+        const v6 = await resolve6(host);
+        if (v6.length > 0) return v6[0];
+    } catch {
+        // ignore
+    }
+    return null;
+}
+
+function tcpProbe(host: string, port: number, timeout: number): Promise<boolean> {
+    return new Promise(resolve => {
+        const socket = net.createConnection({ host, port });
+        const timer = setTimeout(() => {
+            socket.destroy();
+            resolve(false);
+        }, timeout);
+        socket.on('connect', () => {
+            clearTimeout(timer);
+            socket.destroy();
+            resolve(true);
+        });
+        socket.on('error', () => {
+            clearTimeout(timer);
+            socket.destroy();
+            resolve(false);
+        });
+    });
+}
+
+/**
+ * Wait until host:port is TCP-reachable.
+ */
+async function waitForHostReachable(host: string, port: number): Promise<boolean> {
+    const maxAttempts = 5;
+    const probeTimeout = 2000;
+    const retryDelay = 2000;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const ip = await resolveHost(host);
+        if (!ip) {
+            console.warn(`[IMAP] DNS resolve failed for ${host} (attempt ${attempt}/${maxAttempts})`);
+        } else {
+            const reachable = await tcpProbe(ip, port, probeTimeout);
+            if (reachable) {
+                if (attempt > 1) {
+                    console.log(`[IMAP] Host ${host}:${port} reachable after ${attempt} attempts`);
+                }
+                return true;
+            }
+            console.warn(`[IMAP] TCP probe ${host}:${port} failed (attempt ${attempt}/${maxAttempts})`);
+        }
+        if (attempt < maxAttempts) {
+            await new Promise(r => setTimeout(r, retryDelay));
+        }
+    }
+    console.error(`[IMAP] Host ${host}:${port} not reachable after ${maxAttempts} attempts`);
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// ImapFlow client creation
+// ---------------------------------------------------------------------------
 
 function createImapClient(settings: ImapConnectionSettings): ImapFlow {
     return new ImapFlow({
@@ -67,6 +148,10 @@ export function cancelFetch(): void {
 
 // --- Connection check ---
 export async function checkConnection(settings: ImapConnectionSettings): Promise<boolean> {
+    // Verify TCP reachability before attempting IMAP protocol connection
+    const reachable = await waitForHostReachable(settings.host, settings.port);
+    if (!reachable) return false;
+
     const client = createImapClient(settings);
     try {
         await client.connect();
@@ -635,6 +720,28 @@ export async function trashByMessageIds(
 }
 
 // --- Bulk delete by Rule ---
+/**
+ * Build IMAP search criteria from rule keywords for pre-filtering.
+ * Returns a search object that narrows down candidates before client-side regex matching.
+ */
+function buildImapSearchFromRule(ruleLine: RuleLine): Record<string, any> {
+    const searchParts = extractSearchKeywords(ruleLine);
+    if (searchParts.length === 0) return {};
+
+    // Build IMAP SEARCH criteria using the first keyword per field type.
+    // IMAP criteria object keys must be unique, so skip duplicate field types
+    // to avoid overwriting (e.g. two subject patterns would overwrite each other).
+    // Precise matching is done client-side with matchesRuleLine() afterward.
+    const criteria: Record<string, any> = {};
+    for (const part of searchParts) {
+        const key = part.field === 'subject' ? 'subject' : part.field === 'body' ? 'body' : 'text';
+        if (!(key in criteria)) {
+            criteria[key] = part.keywords[0];
+        }
+    }
+    return criteria;
+}
+
 export async function searchAndTrashByRule(
     settings: ImapConnectionSettings,
     ruleLines: RuleLine[],
@@ -662,23 +769,30 @@ export async function searchAndTrashByRule(
                 message: `Processing rule: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
             });
 
+            const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
+
+            // Build IMAP SEARCH pre-filter from rule keywords
+            const searchCriteria = buildImapSearchFromRule(ruleLine);
+            const hasSearchCriteria = Object.keys(searchCriteria).length > 0;
+
             for (const folder of searchableFolders) {
                 try {
                     const lock = await client.getMailboxLock(folder);
                     try {
-                        // Get all message UIDs in folder
-                        const allUids = await client.search({}, { uid: true });
-                        if (!allUids || allUids.length === 0) continue;
+                        // Pre-filter with IMAP SEARCH if possible, otherwise get all UIDs
+                        const candidateUids = hasSearchCriteria
+                            ? await client.search(searchCriteria, { uid: true })
+                            : await client.search({}, { uid: true });
+                        if (!candidateUids || candidateUids.length === 0) continue;
 
-                        // Fetch envelope and body for matching
+                        // Fetch message details and do precise regex matching
                         const matchingUids: number[] = [];
                         for await (const msg of client.fetch(
-                            allUids,
+                            candidateUids,
                             { envelope: true, bodyStructure: true, flags: true, uid: true },
                             { uid: true }
                         )) {
-                            const env = msg.envelope;
-                            const subject = env?.subject || '';
+                            const subject = msg.envelope?.subject || '';
                             const flags = Array.from(msg.flags || new Set());
 
                             // Check exclusion settings
@@ -691,11 +805,7 @@ export async function searchAndTrashByRule(
                                 continue;
                             }
 
-                            // Check if rule has body patterns
-                            const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
-
                             if (hasBodyPattern) {
-                                // Fetch body for matching
                                 try {
                                     const bodyParts = await fetchBodyPartsForMessage(
                                         client,
@@ -709,7 +819,6 @@ export async function searchAndTrashByRule(
                                     // Skip if body fetch fails
                                 }
                             } else {
-                                // Subject-only matching
                                 if (matchesRuleLine(ruleLine, subject, { plain: '', html: '' })) {
                                     matchingUids.push(msg.uid);
                                 }

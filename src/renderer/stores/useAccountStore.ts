@@ -31,10 +31,6 @@ export const useAccountStore = create<AccountStoreState>((set, get) => ({
                     ? state.lastAccountId
                     : accounts[0]?.id || null;
             set({ accounts, activeAccountId: activeId, loading: false });
-            if (activeId) {
-                const connected = await window.mailvalet.getConnectionStatus(activeId);
-                set({ isConnected: connected });
-            }
         } catch (e) {
             console.error('[AccountStore] loadAccounts failed:', e);
             set({ loading: false });

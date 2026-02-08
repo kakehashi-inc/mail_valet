@@ -18,7 +18,7 @@ import type {
     RuleLine,
     EmptyTrashResult,
 } from '../../shared/types';
-import { matchesRuleLine } from './rule-matcher';
+import { matchesRuleLine, extractSearchKeywords } from './rule-matcher';
 import {
     GMAIL_API_BASE,
     GOOGLE_OAUTH_AUTH_URL,
@@ -699,6 +699,25 @@ export async function trashByMessageIds(
 }
 
 // --- Bulk delete by Rule (all-period) ---
+
+/**
+ * Build a Gmail search query from rule keywords for pre-filtering.
+ * Gmail doesn't support regex, so we extract keywords for approximate filtering.
+ * Final matching is done client-side with the actual regex.
+ */
+function buildGmailQueryFromRule(ruleLine: RuleLine): string {
+    const parts: string[] = [];
+    for (const { field, keywords } of extractSearchKeywords(ruleLine)) {
+        if (field === 'subject') {
+            parts.push(...keywords.map(k => `subject:${k}`));
+        } else {
+            // body or any: use full-text search
+            parts.push(...keywords.map(k => `"${k}"`));
+        }
+    }
+    return parts.join(' ');
+}
+
 export async function searchAndTrashByRule(
     accountId: string,
     ruleLines: RuleLine[],
@@ -724,62 +743,41 @@ export async function searchAndTrashByRule(
         if (deleteSettings.excludeImportant) exclusions.push('-is:important');
         if (deleteSettings.excludeStarred) exclusions.push('-is:starred');
 
-        // For rule-based search, we need to fetch messages and filter client-side
-        // Try to extract a simple search query from subject patterns for initial filtering
-        let searchQuery = exclusions.join(' ');
+        // Build pre-filter query from rule keywords
+        const ruleQuery = buildGmailQueryFromRule(ruleLine);
+        const queryParts = [ruleQuery, ...exclusions].filter(Boolean);
+        const searchQuery = queryParts.length > 0 ? queryParts.join(' ') : 'in:anywhere';
 
-        // Get all message IDs matching the basic query
-        const messageIds = await searchMessageIds(accountId, clientId, clientSecret, searchQuery || 'in:anywhere');
+        // Search with pre-filter
+        const candidateIds = await searchMessageIds(accountId, clientId, clientSecret, searchQuery);
 
-        // Fetch message details and filter by rule
+        // Fetch message details and do precise regex matching
+        const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
+        const formatParam = hasBodyPattern ? 'format=full' : 'format=metadata&metadataHeaders=Subject';
+
         const matchingIds: string[] = [];
-        const batchSize = 50;
+        const fetchBatchSize = 50;
 
-        for (let j = 0; j < messageIds.length; j += batchSize) {
-            const batch = messageIds.slice(j, j + batchSize);
+        for (let j = 0; j < candidateIds.length; j += fetchBatchSize) {
+            const batch = candidateIds.slice(j, j + fetchBatchSize);
             const results = await Promise.allSettled(
-                batch.map(id =>
-                    gmailFetch(
-                        accountId,
-                        clientId,
-                        clientSecret,
-                        `/messages/${id}?format=metadata&metadataHeaders=Subject`
-                    )
-                )
+                batch.map(id => gmailFetch(accountId, clientId, clientSecret, `/messages/${id}?${formatParam}`))
             );
 
             for (const result of results) {
-                if (result.status === 'fulfilled') {
-                    const msg = result.value;
-                    const subjectHeader = msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === 'subject');
-                    const subject = subjectHeader?.value || '';
+                if (result.status !== 'fulfilled') continue;
+                const msg = result.value;
+                const subjectHeader = msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === 'subject');
+                const subject = subjectHeader?.value || '';
 
-                    // For rule matching, we need body content for body patterns
-                    // For simplicity in bulk delete, only check subject patterns
-                    // Body patterns are more complex and slower
-                    const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
-
-                    if (hasBodyPattern) {
-                        // Need to fetch body for matching
-                        try {
-                            const fullMsg = await gmailFetch(
-                                accountId,
-                                clientId,
-                                clientSecret,
-                                `/messages/${msg.id}?format=full`
-                            );
-                            const bodyParts = extractBodyParts(fullMsg.payload);
-                            if (matchesRuleLine(ruleLine, subject, bodyParts)) {
-                                matchingIds.push(msg.id);
-                            }
-                        } catch {
-                            // Skip if fetch fails
-                        }
-                    } else {
-                        // Subject-only matching
-                        if (matchesRuleLine(ruleLine, subject, { plain: '', html: '' })) {
-                            matchingIds.push(msg.id);
-                        }
+                if (hasBodyPattern) {
+                    const bodyParts = extractBodyParts(msg.payload || {});
+                    if (matchesRuleLine(ruleLine, subject, bodyParts)) {
+                        matchingIds.push(msg.id);
+                    }
+                } else {
+                    if (matchesRuleLine(ruleLine, subject, { plain: '', html: '' })) {
+                        matchingIds.push(msg.id);
                     }
                 }
             }
@@ -787,7 +785,7 @@ export async function searchAndTrashByRule(
             onProgress?.({
                 current: i,
                 total: ruleLines.length,
-                message: `Checking: ${ruleLine.rawText} ${Math.min(j + batchSize, messageIds.length)}/${messageIds.length}`,
+                message: `Checking: ${ruleLine.rawText} ${Math.min(j + fetchBatchSize, candidateIds.length)}/${candidateIds.length}`,
             });
         }
 
