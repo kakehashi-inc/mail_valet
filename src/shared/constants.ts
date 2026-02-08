@@ -82,6 +82,10 @@ export function getAccountImapSettingsPath(accountId: string): string {
     return path.join(getAccountDir(accountId), 'imap.json');
 }
 
+export function getAccountRulesPath(accountId: string): string {
+    return path.join(getAccountDir(accountId), 'rules.json');
+}
+
 export function getSamplingResultPath(accountId: string, mode: string = 'days'): string {
     return path.join(getAccountCacheDir(accountId), `sampling_${mode}.json`);
 }
@@ -190,6 +194,8 @@ export const IPC_CHANNELS = {
     ACCOUNTS_TEST_IMAP: 'accounts:testImap',
     ACCOUNTS_GET_IMAP_SETTINGS: 'accounts:getImapSettings',
     ACCOUNTS_UPDATE_IMAP: 'accounts:updateImap',
+    ACCOUNTS_GET_RULES: 'accounts:getRules',
+    ACCOUNTS_SAVE_RULES: 'accounts:saveRules',
     MAIL_FETCH_EMAILS: 'mail:fetchEmails',
     MAIL_CANCEL_FETCH: 'mail:cancelFetch',
     MAIL_GET_EMAIL_BODY: 'mail:getEmailBody',
@@ -198,6 +204,8 @@ export const IPC_CHANNELS = {
     MAIL_BULK_DELETE_BY_FROM: 'mail:bulkDeleteByFrom',
     MAIL_DELETE_BY_MESSAGE_IDS: 'mail:deleteByMessageIds',
     MAIL_BULK_DELETE_BY_SUBJECT: 'mail:bulkDeleteBySubject',
+    MAIL_BULK_DELETE_BY_RULE: 'mail:bulkDeleteByRule',
+    MAIL_BUILD_RULE_GROUPS: 'mail:buildRuleGroups',
     MAIL_GET_CACHED_RESULT: 'mail:getCachedResult',
     OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
     OLLAMA_GET_MODELS: 'ollama:getModels',
@@ -209,6 +217,11 @@ export const IPC_CHANNELS = {
     DATA_IMPORT_SETTINGS: 'data:importSettings',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
+    TRASH_OPEN: 'trash:open',
+    TRASH_GET_DATA: 'trash:getData',
+    TRASH_FETCH: 'trash:fetch',
+    TRASH_EMPTY: 'trash:empty',
+    TRASH_DELETE_SELECTED: 'trash:deleteSelected',
     EVENT_FETCH_PROGRESS: 'event:fetchProgress',
     EVENT_AI_PROGRESS: 'event:aiProgress',
     EVENT_DETAIL_DATA: 'event:detailData',

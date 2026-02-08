@@ -6,6 +6,7 @@ import './i18n/config';
 import TitleBar from './components/TitleBar';
 import MainScreen from './components/MainScreen';
 import DetailWindow from './components/DetailWindow';
+import TrashWindow from './components/TrashWindow';
 import SettingsDialog from './components/SettingsDialog';
 import ProgressDialogs from './components/ProgressDialogs';
 import { useAppStore } from './stores/useAppStore';
@@ -14,7 +15,7 @@ import { useEmailStore } from './stores/useEmailStore';
 
 export default function App() {
     const { i18n } = useTranslation();
-    const { info, isDetailView, settingsOpen, setSettingsOpen, initialize } = useAppStore();
+    const { info, isDetailView, isTrashView, settingsOpen, setSettingsOpen, initialize } = useAppStore();
     const { activeAccountId, loadAccounts } = useAccountStore();
     const { loadCachedResult, loadGroupMode } = useEmailStore();
 
@@ -31,11 +32,11 @@ export default function App() {
     }, [i18n, initialize, loadAccounts]);
 
     React.useEffect(() => {
-        if (activeAccountId && !isDetailView) {
+        if (activeAccountId && !isDetailView && !isTrashView) {
             loadGroupMode(activeAccountId);
             loadCachedResult(activeAccountId);
         }
-    }, [activeAccountId, isDetailView, loadGroupMode, loadCachedResult]);
+    }, [activeAccountId, isDetailView, isTrashView, loadGroupMode, loadCachedResult]);
 
     const muiTheme = React.useMemo(
         () =>
@@ -55,6 +56,15 @@ export default function App() {
             <ThemeProvider theme={muiTheme}>
                 <CssBaseline />
                 <DetailWindow />
+            </ThemeProvider>
+        );
+    }
+
+    if (isTrashView) {
+        return (
+            <ThemeProvider theme={muiTheme}>
+                <CssBaseline />
+                <TrashWindow />
             </ThemeProvider>
         );
     }

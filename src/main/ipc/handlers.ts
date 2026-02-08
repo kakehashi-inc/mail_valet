@@ -21,13 +21,22 @@ import type {
     DeleteResult,
     MailProviderId,
     ImapConnectionSettings,
+    AccountRules,
+    RuleLine,
+    TrashWindowData,
+    EmptyTrashResult,
+    RuleGroup,
 } from '../../shared/types';
+import { parseRuleText } from '../services/rule-parser';
+import { buildRuleGroups } from '../services/rule-matcher';
 import path from 'path';
 import fs from 'fs/promises';
 
 let mainWindow: BrowserWindow | null = null;
 const detailWindows = new Map<string, BrowserWindow>();
 const detailWindowData = new Map<number, DetailWindowData>();
+const trashWindows = new Map<string, BrowserWindow>();
+const trashWindowData = new Map<number, TrashWindowData>();
 
 export function setMainWindowRef(win: BrowserWindow | null) {
     mainWindow = win;
@@ -210,6 +219,14 @@ export function registerAllIpcHandlers() {
             return true;
         }
     );
+    ipcMain.handle(IPC_CHANNELS.ACCOUNTS_GET_RULES, (_e, accountId: string) =>
+        accountManager.getAccountRules(accountId)
+    );
+    ipcMain.handle(IPC_CHANNELS.ACCOUNTS_SAVE_RULES, async (_e, accountId: string, rules: AccountRules) => {
+        // Re-parse to ensure lines are up to date
+        const parsed = parseRuleText(rules.ruleText);
+        await accountManager.saveAccountRules(accountId, parsed);
+    });
 
     // --- Mail ---
     ipcMain.handle(IPC_CHANNELS.MAIL_FETCH_EMAILS, async (_e, options: FetchEmailsOptions) => {
@@ -310,6 +327,54 @@ export function registerAllIpcHandlers() {
             );
         }
     );
+    ipcMain.handle(
+        IPC_CHANNELS.MAIL_BULK_DELETE_BY_RULE,
+        async (_e, accountId: string, ruleLines: RuleLine[]): Promise<DeleteResult> => {
+            const deleteSettings = await settingsManager.getDeleteSettings();
+            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+            const provider = await getAccountProvider(accountId);
+            if (provider === 'imap') {
+                const imapSettings = await requireImapSettings(accountId);
+                return imapService.searchAndTrashByRule(imapSettings, ruleLines, deleteSettings, onProgress);
+            }
+            const gcpSettings = await settingsManager.getGcpSettings();
+            return gmailService.searchAndTrashByRule(
+                accountId,
+                ruleLines,
+                deleteSettings,
+                gcpSettings.clientId,
+                gcpSettings.clientSecret,
+                onProgress
+            );
+        }
+    );
+    ipcMain.handle(
+        IPC_CHANNELS.MAIL_BUILD_RULE_GROUPS,
+        async (_e, accountId: string, mode?: string): Promise<RuleGroup[]> => {
+            const fetchMode = (mode as 'days' | 'range') || 'days';
+            const cached = await gmailService.getCachedResult(accountId, fetchMode);
+            if (!cached) return [];
+
+            const rules = await accountManager.getAccountRules(accountId);
+            if (rules.lines.length === 0) return [];
+
+            const periodDays = Math.max(
+                1,
+                Math.round(
+                    (new Date(cached.result.periodEnd).getTime() -
+                        new Date(cached.result.periodStart).getTime()) /
+                        86400000
+                )
+            );
+
+            return buildRuleGroups(
+                cached.result.messages,
+                cached.result.bodyParts || {},
+                rules,
+                periodDays
+            );
+        }
+    );
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_CACHED_RESULT, (_e, accountId: string, mode?: string) =>
         gmailService.getCachedResult(accountId, (mode as 'days' | 'range') || 'days')
     );
@@ -394,6 +459,102 @@ export function registerAllIpcHandlers() {
         if (!win) return null;
         return detailWindowData.get(win.id) || null;
     });
+
+    // --- Trash window ---
+    ipcMain.handle(IPC_CHANNELS.TRASH_OPEN, async (_e, accountId: string) => {
+        const existing = trashWindows.get(accountId);
+        if (existing && !existing.isDestroyed()) {
+            existing.focus();
+            return;
+        }
+
+        const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+        const trashWindow = new BrowserWindow({
+            width: 900,
+            height: 700,
+            title: 'Trash',
+            frame: false,
+            titleBarStyle: 'hidden',
+            autoHideMenuBar: true,
+            webPreferences: {
+                preload: path.join(__dirname, '../../preload/index.js'),
+            },
+        });
+
+        trashWindowData.set(trashWindow.id, { accountId, messages: [] });
+        trashWindows.set(accountId, trashWindow);
+
+        if (isDev) {
+            trashWindow.loadURL('http://localhost:3001?trash=1');
+        } else {
+            trashWindow.loadFile(path.join(__dirname, '../../renderer/index.html'), {
+                query: { trash: '1' },
+            });
+        }
+
+        trashWindow.on('closed', () => {
+            trashWindowData.delete(trashWindow.id);
+            trashWindows.delete(accountId);
+        });
+    });
+
+    ipcMain.handle(IPC_CHANNELS.TRASH_GET_DATA, e => {
+        const win = BrowserWindow.fromWebContents(e.sender);
+        if (!win) return null;
+        return trashWindowData.get(win.id) || null;
+    });
+
+    ipcMain.handle(IPC_CHANNELS.TRASH_FETCH, async (_e, accountId: string) => {
+        const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+        const provider = await getAccountProvider(accountId);
+        if (provider === 'imap') {
+            const imapSettings = await requireImapSettings(accountId);
+            return imapService.fetchTrashEmails(imapSettings, onProgress);
+        }
+        const gcpSettings = await settingsManager.getGcpSettings();
+        return gmailService.fetchTrashEmails(
+            accountId,
+            gcpSettings.clientId,
+            gcpSettings.clientSecret,
+            onProgress
+        );
+    });
+
+    ipcMain.handle(IPC_CHANNELS.TRASH_EMPTY, async (_e, accountId: string): Promise<EmptyTrashResult> => {
+        const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+        const provider = await getAccountProvider(accountId);
+        if (provider === 'imap') {
+            const imapSettings = await requireImapSettings(accountId);
+            return imapService.emptyTrash(imapSettings, onProgress);
+        }
+        const gcpSettings = await settingsManager.getGcpSettings();
+        return gmailService.emptyTrash(
+            accountId,
+            gcpSettings.clientId,
+            gcpSettings.clientSecret,
+            onProgress
+        );
+    });
+
+    ipcMain.handle(
+        IPC_CHANNELS.TRASH_DELETE_SELECTED,
+        async (_e, accountId: string, messageIds: string[]): Promise<EmptyTrashResult> => {
+            const onProgress = throttledProgress(IPC_CHANNELS.EVENT_FETCH_PROGRESS);
+            const provider = await getAccountProvider(accountId);
+            if (provider === 'imap') {
+                const imapSettings = await requireImapSettings(accountId);
+                return imapService.deleteTrashMessages(imapSettings, messageIds, onProgress);
+            }
+            const gcpSettings = await settingsManager.getGcpSettings();
+            return gmailService.deleteTrashMessages(
+                accountId,
+                messageIds,
+                gcpSettings.clientId,
+                gcpSettings.clientSecret,
+                onProgress
+            );
+        }
+    );
 
     // --- App state ---
     ipcMain.handle(IPC_CHANNELS.STATE_GET, () => stateManager.getAppState());

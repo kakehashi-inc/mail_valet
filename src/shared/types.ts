@@ -27,7 +27,7 @@ export type GeneralSettings = {
 export type ReadFilter = 'all' | 'unread' | 'read';
 
 // グルーピングモード
-export type GroupMode = 'from' | 'subject';
+export type GroupMode = 'from' | 'subject' | 'rule';
 
 export interface FetchSettings {
     samplingDays: number;
@@ -172,6 +172,43 @@ export interface SubjectGroup {
     };
 }
 
+// ---------------------------------------------------------------------------
+// Rule-based Grouping
+// ---------------------------------------------------------------------------
+export type RulePatternField = 'subject' | 'body' | 'any';
+
+export interface RulePattern {
+    field: RulePatternField;
+    regex: string;
+}
+
+export interface RuleLine {
+    patterns: RulePattern[];
+    lineIndex: number;
+    rawText: string;
+}
+
+export interface AccountRules {
+    ruleText: string;
+    lines: RuleLine[];
+}
+
+export interface RuleGroup {
+    ruleKey: string;
+    ruleText: string;
+    ruleLine: RuleLine;
+    count: number;
+    frequency: number;
+    latestDate: string;
+    refFrom: string;
+    refSubject: string;
+    messages: EmailMessage[];
+    aiScoreRange: {
+        marketing: [number, number];
+        spam: [number, number];
+    };
+}
+
 export interface SamplingResult {
     messages: EmailMessage[];
     fromGroups: FromGroup[];
@@ -264,4 +301,17 @@ export interface DetailWindowData {
         spam: [number, number];
     };
     accountId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Trash Window
+// ---------------------------------------------------------------------------
+export interface TrashWindowData {
+    accountId: string;
+    messages: EmailMessage[];
+}
+
+export interface EmptyTrashResult {
+    deleted: number;
+    errors: number;
 }

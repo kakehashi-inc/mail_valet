@@ -104,4 +104,5 @@ export async function importAllSettings(json: string): Promise<void> {
     if (data.fetch) await saveFetchSettings(data.fetch);
     if (data.delete) await saveDeleteSettings(data.delete);
     if (data.ollama) await saveOllamaSettings(data.ollama);
+    if (data.aiJudgment) await saveAIJudgmentSettings(data.aiJudgment);
 }

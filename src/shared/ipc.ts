@@ -22,6 +22,12 @@ import type {
     FetchProgress,
     AIProgress,
     ImapConnectionSettings,
+    AccountRules,
+    RuleGroup,
+    RuleLine,
+    TrashWindowData,
+    EmptyTrashResult,
+    EmailMessage,
 } from './types';
 
 export type IpcApi = {
@@ -64,6 +70,8 @@ export type IpcApi = {
     testImapConnection(settings: ImapConnectionSettings): Promise<boolean>;
     getImapSettings(accountId: string): Promise<ImapConnectionSettings | null>;
     updateImapSettings(accountId: string, settings: ImapConnectionSettings): Promise<boolean>;
+    getAccountRules(accountId: string): Promise<AccountRules>;
+    saveAccountRules(accountId: string, rules: AccountRules): Promise<void>;
 
     // Mail
     fetchEmails(options: FetchEmailsOptions): Promise<SamplingResult>;
@@ -74,6 +82,8 @@ export type IpcApi = {
     bulkDeleteByFrom(accountId: string, fromAddresses: string[]): Promise<DeleteResult>;
     deleteByMessageIds(accountId: string, messageIds: string[]): Promise<DeleteResult>;
     bulkDeleteBySubject(accountId: string, subjects: string[]): Promise<DeleteResult>;
+    bulkDeleteByRule(accountId: string, ruleLines: RuleLine[]): Promise<DeleteResult>;
+    buildRuleGroups(accountId: string, mode?: FetchMode): Promise<RuleGroup[]>;
     getCachedResult(
         accountId: string,
         mode?: FetchMode
@@ -93,6 +103,13 @@ export type IpcApi = {
     // Detail window
     openDetailWindow(data: DetailWindowData): Promise<void>;
     getDetailData(): Promise<DetailWindowData | null>;
+
+    // Trash window
+    openTrashWindow(accountId: string): Promise<void>;
+    getTrashData(): Promise<TrashWindowData | null>;
+    fetchTrash(accountId: string): Promise<EmailMessage[]>;
+    emptyTrash(accountId: string): Promise<EmptyTrashResult>;
+    deleteTrashMessages(accountId: string, messageIds: string[]): Promise<EmptyTrashResult>;
 
     // App state
     getAppState(): Promise<AppState>;

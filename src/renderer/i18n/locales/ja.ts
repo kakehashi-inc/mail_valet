@@ -13,6 +13,7 @@ export default {
         add: '追加',
         yes: 'はい',
         no: 'いいえ',
+        delete: '削除',
     },
 
     account: {
@@ -59,8 +60,35 @@ export default {
         perDay: '件/日',
         searchPlaceholder: 'From/ドメインで検索...',
         searchPlaceholderSubject: '件名/差出人で検索...',
+        searchPlaceholderRule: 'ルールで検索...',
         refFrom: '参考From',
+        refSubject: '参考件名',
         noData: 'データがありません。メールを取得してください。',
+    },
+
+    rule: {
+        mode: 'ルール',
+        rule: 'ルール',
+        settings: '設定',
+        editorTitle: 'ルール設定',
+        syntaxHelp:
+            '各行がルール（OR条件）です。同一行内の複数パターンはAND条件になります。subject:"正規表現"、body:"正規表現"、または"正規表現"（全フィールドにマッチ）が使えます。',
+        syntaxExample: '例: subject:".*未配達.*" または ".*キーワード.*"',
+    },
+
+    trash: {
+        viewTrash: 'ゴミ箱を見る',
+        title: 'ゴミ箱',
+        loading: '読み込み中...',
+        empty: 'ゴミ箱は空です。',
+        selectAll: '全件チェック',
+        deselectAll: '全チェック解除',
+        deleteSelected: 'チェック分を削除',
+        emptyTrash: 'ゴミ箱を空にする',
+        confirmDeleteSelected: '選択したメールを完全削除しますか？',
+        confirmDeleteSelectedDesc: '{{count}}件の選択メールを完全に削除します。この操作は元に戻せません。',
+        confirmEmptyTrash: 'ゴミ箱を空にしますか？',
+        confirmEmptyTrashDesc: 'ゴミ箱内の{{count}}件すべてのメールを完全に削除します。この操作は元に戻せません。',
     },
 
     action: {
@@ -75,6 +103,8 @@ export default {
             '選択した{{groups}}件の送信元のメールをすべてゴミ箱に移動しますか？サンプリング期間外のメールも含め、該当送信元の全メールが対象です。削除後、最新の状態を表示するには再取得してください。',
         bulkConfirmMessageSubject:
             '選択した{{groups}}件の件名のメールをすべてゴミ箱に移動しますか？サンプリング期間外のメールも含め、該当件名の全メールが対象です。削除後、最新の状態を表示するには再取得してください。',
+        bulkConfirmMessageRule:
+            '選択した{{groups}}件のルールにマッチするメールをすべてゴミ箱に移動しますか？サンプリング期間外のメールも含め、該当ルールの全メールが対象です。削除後、最新の状態を表示するには再取得してください。',
         periodConfirmTitle: '期間削除の確認',
         periodConfirmMessage:
             '選択した{{groups}}件のグループのサンプリング済みメールをゴミ箱に移動しますか？サンプリング期間内に取得されたメールのみが対象です。',

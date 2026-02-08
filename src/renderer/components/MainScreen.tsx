@@ -3,6 +3,7 @@ import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typogra
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DateRangeIcon from '@mui/icons-material/DateRange';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useTranslation } from 'react-i18next';
 import FetchControls from './FetchControls';
 import AIFilterBar from './AIFilterBar';
@@ -24,6 +25,7 @@ export default function MainScreen() {
         groupMode,
         getFilteredFromGroups,
         getFilteredSubjectGroups,
+        getFilteredRuleGroups,
         fetchEmails,
         fetchMode,
         samplingMeta,
@@ -82,12 +84,18 @@ export default function MainScreen() {
             let result;
             if (groupMode === 'from') {
                 result = await window.mailvalet.bulkDeleteByFrom(activeAccountId, Array.from(selectedGroupKeys));
-            } else {
+            } else if (groupMode === 'subject') {
                 const groups = getFilteredSubjectGroups();
                 const subjects = groups
                     .filter(g => selectedGroupKeys.has(g.subject))
                     .map(g => g.displaySubject);
                 result = await window.mailvalet.bulkDeleteBySubject(activeAccountId, subjects);
+            } else {
+                const groups = getFilteredRuleGroups();
+                const ruleLines = groups
+                    .filter(g => selectedGroupKeys.has(g.ruleKey))
+                    .map(g => g.ruleLine);
+                result = await window.mailvalet.bulkDeleteByRule(activeAccountId, ruleLines);
             }
             const resultMsg = t('status.deleteResult', {
                 trashed: result.trashed,
@@ -118,10 +126,15 @@ export default function MainScreen() {
                 selectedMessages = groups
                     .filter(g => selectedGroupKeys.has(g.fromAddress))
                     .flatMap(g => g.messages);
-            } else {
+            } else if (groupMode === 'subject') {
                 const groups = getFilteredSubjectGroups();
                 selectedMessages = groups
                     .filter(g => selectedGroupKeys.has(g.subject))
+                    .flatMap(g => g.messages);
+            } else {
+                const groups = getFilteredRuleGroups();
+                selectedMessages = groups
+                    .filter(g => selectedGroupKeys.has(g.ruleKey))
                     .flatMap(g => g.messages);
             }
 
@@ -157,7 +170,9 @@ export default function MainScreen() {
     const bulkDeleteMessage =
         groupMode === 'from'
             ? t('delete.confirmMessage', { groups: selectedCount })
-            : t('delete.bulkConfirmMessageSubject', { groups: selectedCount });
+            : groupMode === 'subject'
+              ? t('delete.bulkConfirmMessageSubject', { groups: selectedCount })
+              : t('delete.bulkConfirmMessageRule', { groups: selectedCount });
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
@@ -193,6 +208,15 @@ export default function MainScreen() {
                     disabled={!activeAccountId || selectedCount === 0}
                 >
                     {t('action.bulkDelete')} ({selectedCount})
+                </Button>
+                <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DeleteOutlineIcon />}
+                    onClick={() => activeAccountId && window.mailvalet.openTrashWindow(activeAccountId)}
+                    disabled={!activeAccountId}
+                >
+                    {t('trash.viewTrash')}
                 </Button>
             </Box>
             <StatusBar />

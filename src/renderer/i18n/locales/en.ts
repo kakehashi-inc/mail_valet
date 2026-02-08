@@ -13,6 +13,7 @@ export default {
         add: 'Add',
         yes: 'Yes',
         no: 'No',
+        delete: 'Delete',
     },
 
     account: {
@@ -59,8 +60,35 @@ export default {
         perDay: '/day',
         searchPlaceholder: 'Search by From/domain...',
         searchPlaceholderSubject: 'Search by subject/sender...',
+        searchPlaceholderRule: 'Search by rule...',
         refFrom: 'Ref. From',
+        refSubject: 'Ref. Subject',
         noData: 'No data. Please fetch emails.',
+    },
+
+    rule: {
+        mode: 'Rule',
+        rule: 'Rule',
+        settings: 'Settings',
+        editorTitle: 'Rule Settings',
+        syntaxHelp:
+            'Each line is a rule (OR condition). Multiple patterns on the same line are AND conditions. Use subject:"regex", body:"regex", or "regex" (matches any field).',
+        syntaxExample: 'Example: subject:".*Undelivered.*" or ".*keyword.*"',
+    },
+
+    trash: {
+        viewTrash: 'View Trash',
+        title: 'Trash',
+        loading: 'Loading...',
+        empty: 'Trash is empty.',
+        selectAll: 'Select All',
+        deselectAll: 'Deselect All',
+        deleteSelected: 'Delete Selected',
+        emptyTrash: 'Empty Trash',
+        confirmDeleteSelected: 'Permanently Delete Selected?',
+        confirmDeleteSelectedDesc: 'Permanently delete {{count}} selected emails? This cannot be undone.',
+        confirmEmptyTrash: 'Empty Trash?',
+        confirmEmptyTrashDesc: 'Permanently delete all {{count}} emails in trash? This cannot be undone.',
     },
 
     action: {
@@ -75,6 +103,8 @@ export default {
             'Move all emails from the {{groups}} selected senders to trash? This includes all emails from these senders, not just those within the sampling period. To see updated results, please fetch again after deletion.',
         bulkConfirmMessageSubject:
             'Move all emails with the {{groups}} selected subjects to trash? This includes all emails with these subjects, not just those within the sampling period. To see updated results, please fetch again after deletion.',
+        bulkConfirmMessageRule:
+            'Move all emails matching the {{groups}} selected rules to trash? This includes all emails matching these rules, not just those within the sampling period. To see updated results, please fetch again after deletion.',
         periodConfirmTitle: 'Confirm Period Delete',
         periodConfirmMessage:
             'Move sampled emails from the {{groups}} selected groups to trash? Only emails collected within the sampling period are affected.',

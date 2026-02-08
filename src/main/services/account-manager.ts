@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import type { Account, AccountTokens, AccountLabelSelection, ImapConnectionSettings } from '../../shared/types';
+import type { Account, AccountTokens, AccountLabelSelection, ImapConnectionSettings, AccountRules } from '../../shared/types';
 import {
     getAccountsDir,
     getAccountDir,
@@ -8,6 +8,7 @@ import {
     getAccountTokensPath,
     getAccountLabelsPath,
     getAccountImapSettingsPath,
+    getAccountRulesPath,
 } from '../../shared/constants';
 import { readJsonFile, writeJsonFile, ensureDir, listDirectories, deleteDir } from './file-manager';
 import { encrypt, decrypt } from './encryption';
@@ -132,4 +133,17 @@ export async function updateAccountProfile(
     if (!profile) return;
     const updated = { ...profile, ...updates };
     await writeJsonFile(getAccountProfilePath(accountId), updated);
+}
+
+const DEFAULT_ACCOUNT_RULES: AccountRules = {
+    ruleText: '',
+    lines: [],
+};
+
+export async function getAccountRules(accountId: string): Promise<AccountRules> {
+    return readJsonFile<AccountRules>(getAccountRulesPath(accountId), DEFAULT_ACCOUNT_RULES);
+}
+
+export async function saveAccountRules(accountId: string, rules: AccountRules): Promise<void> {
+    await writeJsonFile(getAccountRulesPath(accountId), rules);
 }

@@ -11,13 +11,23 @@ import type {
     DeleteResult,
     DeleteSettings,
     EmailBodyParts,
+    RuleLine,
+    EmptyTrashResult,
 } from '../../shared/types';
+import { matchesRuleLine } from './rule-matcher';
 import { getSamplingResultPath, getSamplingMetaPath } from '../../shared/constants';
 import { writeJsonFile } from './file-manager';
 import { buildFromGroups, getCachedResult } from './gmail-service';
 import { getFetchSettings } from './settings-manager';
 
 type ProgressCallback = (progress: FetchProgress) => void;
+
+// Local type for imapflow mailbox list result
+interface ImapMailbox {
+    path: string;
+    name: string;
+    specialUse?: string;
+}
 
 function createImapClient(settings: ImapConnectionSettings): ImapFlow {
     return new ImapFlow({
@@ -77,7 +87,7 @@ export async function fetchFolders(settings: ImapConnectionSettings): Promise<Ma
         await client.connect();
         const mailboxes = await client.list();
         await client.logout();
-        return mailboxes.map(mb => ({
+        return mailboxes.map((mb: ImapMailbox) => ({
             id: mb.path,
             name: mb.name,
             type: mb.specialUse ? 'system' : 'user',
@@ -102,7 +112,7 @@ function extractFromAddress(from: string): string {
 async function findTrashFolder(client: ImapFlow): Promise<string> {
     const mailboxes = await client.list();
     // Look for \Trash special use
-    const trash = mailboxes.find(mb => mb.specialUse === '\\Trash');
+    const trash = mailboxes.find((mb: ImapMailbox) => mb.specialUse === '\\Trash');
     if (trash) {
         console.debug(`[IMAP] Trash folder found: ${trash.path} (specialUse: \\Trash)`);
         return trash.path;
@@ -110,7 +120,7 @@ async function findTrashFolder(client: ImapFlow): Promise<string> {
     // Fallback: common names
     const fallbacks = ['Trash', 'Deleted Items', 'Deleted Messages', 'Deleted'];
     for (const name of fallbacks) {
-        const found = mailboxes.find(mb => mb.path.toLowerCase() === name.toLowerCase());
+        const found = mailboxes.find((mb: ImapMailbox) => mb.path.toLowerCase() === name.toLowerCase());
         if (found) {
             console.warn(`[IMAP] Trash folder found by name fallback: ${found.path}`);
             return found.path;
@@ -118,7 +128,7 @@ async function findTrashFolder(client: ImapFlow): Promise<string> {
     }
     console.error(
         '[IMAP] No Trash folder found! Available:',
-        mailboxes.map(mb => `${mb.path} (${mb.specialUse || 'no specialUse'})`).join(', ')
+        mailboxes.map((mb: ImapMailbox) => `${mb.path} (${mb.specialUse || 'no specialUse'})`).join(', ')
     );
     return 'Trash';
 }
@@ -436,8 +446,8 @@ export async function searchAndTrashByFrom(
         const trashPath = await findTrashFolder(client);
         const mailboxes = await client.list();
         const searchableFolders = mailboxes
-            .filter(mb => !mb.specialUse || (mb.specialUse !== '\\Trash' && mb.specialUse !== '\\Junk'))
-            .map(mb => mb.path);
+            .filter((mb: ImapMailbox) => !mb.specialUse || (mb.specialUse !== '\\Trash' && mb.specialUse !== '\\Junk'))
+            .map((mb: ImapMailbox) => mb.path);
 
         for (let i = 0; i < fromAddresses.length; i++) {
             const fromAddr = fromAddresses[i];
@@ -458,7 +468,7 @@ export async function searchAndTrashByFrom(
                         if (deleteSettings.excludeImportant || deleteSettings.excludeStarred) {
                             const flaggedUids = await client.search({ from: fromAddr, flagged: true }, { uid: true });
                             const flaggedSet = new Set(flaggedUids || []);
-                            toTrashUids = allUids.filter(uid => !flaggedSet.has(uid));
+                            toTrashUids = allUids.filter((uid: number) => !flaggedSet.has(uid));
                             totalExcluded += allUids.length - toTrashUids.length;
                         }
 
@@ -511,8 +521,8 @@ export async function searchAndTrashBySubject(
         const trashPath = await findTrashFolder(client);
         const mailboxes = await client.list();
         const searchableFolders = mailboxes
-            .filter(mb => !mb.specialUse || (mb.specialUse !== '\\Trash' && mb.specialUse !== '\\Junk'))
-            .map(mb => mb.path);
+            .filter((mb: ImapMailbox) => !mb.specialUse || (mb.specialUse !== '\\Trash' && mb.specialUse !== '\\Junk'))
+            .map((mb: ImapMailbox) => mb.path);
 
         for (let i = 0; i < subjects.length; i++) {
             const subj = subjects[i];
@@ -533,7 +543,7 @@ export async function searchAndTrashBySubject(
                         if (deleteSettings.excludeImportant || deleteSettings.excludeStarred) {
                             const flaggedUids = await client.search({ subject: subj, flagged: true }, { uid: true });
                             const flaggedSet = new Set(flaggedUids || []);
-                            toTrashUids = allUids.filter(uid => !flaggedSet.has(uid));
+                            toTrashUids = allUids.filter((uid: number) => !flaggedSet.has(uid));
                             totalExcluded += allUids.length - toTrashUids.length;
                         }
 
@@ -622,6 +632,323 @@ export async function trashByMessageIds(
     }
 
     return { trashed: totalTrashed, excluded: 0, errors: totalErrors };
+}
+
+// --- Bulk delete by Rule ---
+export async function searchAndTrashByRule(
+    settings: ImapConnectionSettings,
+    ruleLines: RuleLine[],
+    deleteSettings: DeleteSettings,
+    onProgress?: ProgressCallback
+): Promise<DeleteResult> {
+    let totalTrashed = 0;
+    let totalExcluded = 0;
+    let totalErrors = 0;
+
+    const client = createImapClient(settings);
+    try {
+        await client.connect();
+        const trashPath = await findTrashFolder(client);
+        const mailboxes = await client.list();
+        const searchableFolders = mailboxes
+            .filter((mb: ImapMailbox) => !mb.specialUse || (mb.specialUse !== '\\Trash' && mb.specialUse !== '\\Junk'))
+            .map((mb: ImapMailbox) => mb.path);
+
+        for (let i = 0; i < ruleLines.length; i++) {
+            const ruleLine = ruleLines[i];
+            onProgress?.({
+                current: i,
+                total: ruleLines.length,
+                message: `Processing rule: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
+            });
+
+            for (const folder of searchableFolders) {
+                try {
+                    const lock = await client.getMailboxLock(folder);
+                    try {
+                        // Get all message UIDs in folder
+                        const allUids = await client.search({}, { uid: true });
+                        if (!allUids || allUids.length === 0) continue;
+
+                        // Fetch envelope and body for matching
+                        const matchingUids: number[] = [];
+                        for await (const msg of client.fetch(
+                            allUids,
+                            { envelope: true, bodyStructure: true, flags: true, uid: true },
+                            { uid: true }
+                        )) {
+                            const env = msg.envelope;
+                            const subject = env?.subject || '';
+                            const flags = Array.from(msg.flags || new Set());
+
+                            // Check exclusion settings
+                            if (deleteSettings.excludeImportant && flags.includes('\\Flagged')) {
+                                totalExcluded++;
+                                continue;
+                            }
+                            if (deleteSettings.excludeStarred && flags.includes('\\Flagged')) {
+                                totalExcluded++;
+                                continue;
+                            }
+
+                            // Check if rule has body patterns
+                            const hasBodyPattern = ruleLine.patterns.some(
+                                p => p.field === 'body' || p.field === 'any'
+                            );
+
+                            if (hasBodyPattern) {
+                                // Fetch body for matching
+                                try {
+                                    const bodyParts = await fetchBodyPartsForMessage(
+                                        client,
+                                        msg.uid,
+                                        msg.bodyStructure
+                                    );
+                                    if (matchesRuleLine(ruleLine, subject, bodyParts)) {
+                                        matchingUids.push(msg.uid);
+                                    }
+                                } catch {
+                                    // Skip if body fetch fails
+                                }
+                            } else {
+                                // Subject-only matching
+                                if (matchesRuleLine(ruleLine, subject, { plain: '', html: '' })) {
+                                    matchingUids.push(msg.uid);
+                                }
+                            }
+                        }
+
+                        // Move matching messages to trash
+                        if (matchingUids.length > 0) {
+                            try {
+                                await client.messageMove(matchingUids, trashPath, { uid: true });
+                                totalTrashed += matchingUids.length;
+                            } catch (e) {
+                                console.error(`[IMAP] messageMove failed in ${folder}:`, e);
+                                totalErrors += matchingUids.length;
+                            }
+                        }
+                    } finally {
+                        lock.release();
+                    }
+                } catch (e) {
+                    console.error(`[IMAP] searchAndTrashByRule error in folder ${folder}:`, e);
+                }
+            }
+
+            onProgress?.({
+                current: i + 1,
+                total: ruleLines.length,
+                message: `Done: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
+            });
+        }
+
+        await client.logout();
+    } finally {
+        client.close();
+    }
+
+    return { trashed: totalTrashed, excluded: totalExcluded, errors: totalErrors };
+}
+
+// Helper to fetch body parts for a single message
+async function fetchBodyPartsForMessage(
+    client: ImapFlow,
+    uid: number,
+    bodyStructure: any
+): Promise<EmailBodyParts> {
+    const parts = flattenStructure(bodyStructure);
+    let plain = '';
+    let html = '';
+
+    for (const p of parts) {
+        if (p.type === 'text/plain' && p.part) {
+            const data = await client.download(uid.toString(), p.part, { uid: true });
+            if (data?.content) {
+                const chunks: Buffer[] = [];
+                for await (const chunk of data.content) {
+                    chunks.push(chunk as Buffer);
+                }
+                plain = Buffer.concat(chunks).toString('utf-8');
+            }
+        } else if (p.type === 'text/html' && p.part) {
+            const data = await client.download(uid.toString(), p.part, { uid: true });
+            if (data?.content) {
+                const chunks: Buffer[] = [];
+                for await (const chunk of data.content) {
+                    chunks.push(chunk as Buffer);
+                }
+                html = Buffer.concat(chunks).toString('utf-8');
+            }
+        }
+    }
+
+    return { plain, html };
+}
+
+// --- Fetch trash emails ---
+export async function fetchTrashEmails(
+    settings: ImapConnectionSettings,
+    onProgress?: ProgressCallback
+): Promise<EmailMessage[]> {
+    const messages: EmailMessage[] = [];
+
+    const client = createImapClient(settings);
+    try {
+        await client.connect();
+        const trashPath = await findTrashFolder(client);
+        const lock = await client.getMailboxLock(trashPath);
+
+        try {
+            const uids = await client.search({}, { uid: true });
+            if (!uids || uids.length === 0) return [];
+
+            onProgress?.({ current: 0, total: uids.length, message: 'Loading trash...' });
+
+            let processed = 0;
+            for await (const msg of client.fetch(
+                uids,
+                { envelope: true, flags: true, uid: true },
+                { uid: true }
+            )) {
+                const env = msg.envelope;
+                const fromObj = env?.from?.[0];
+                const toObj = env?.to?.[0];
+                const from = formatFromAddress(fromObj?.name, fromObj?.address);
+                const flags = Array.from(msg.flags || new Set());
+
+                messages.push({
+                    id: `${trashPath}:${msg.uid}`,
+                    threadId: '',
+                    from,
+                    fromAddress: extractFromAddress(from),
+                    to: formatFromAddress(toObj?.name, toObj?.address),
+                    subject: env?.subject || '',
+                    date: env?.date ? env.date.toISOString() : '',
+                    snippet: '',
+                    labelIds: [trashPath],
+                    isImportant: flags.includes('\\Flagged'),
+                    isStarred: flags.includes('\\Flagged'),
+                });
+
+                processed++;
+                if (processed % 50 === 0) {
+                    onProgress?.({
+                        current: processed,
+                        total: uids.length,
+                        message: `Loading trash: ${processed}/${uids.length}`,
+                    });
+                }
+            }
+        } finally {
+            lock.release();
+        }
+
+        await client.logout();
+    } finally {
+        client.close();
+    }
+
+    return messages;
+}
+
+// --- Empty trash (permanent delete) ---
+export async function emptyTrash(
+    settings: ImapConnectionSettings,
+    onProgress?: ProgressCallback
+): Promise<EmptyTrashResult> {
+    let deleted = 0;
+    let errors = 0;
+
+    const client = createImapClient(settings);
+    try {
+        await client.connect();
+        const trashPath = await findTrashFolder(client);
+        const lock = await client.getMailboxLock(trashPath);
+
+        try {
+            const uids = await client.search({}, { uid: true });
+            if (!uids || uids.length === 0) return { deleted: 0, errors: 0 };
+
+            onProgress?.({ current: 0, total: uids.length, message: 'Emptying trash...' });
+
+            try {
+                // Mark as deleted and expunge
+                await client.messageFlagsAdd(uids, ['\\Deleted'], { uid: true });
+                await client.messageDelete(uids, { uid: true });
+                deleted = uids.length;
+            } catch (e) {
+                console.error('[IMAP] emptyTrash failed:', e);
+                errors = uids.length;
+            }
+
+            onProgress?.({
+                current: deleted,
+                total: uids.length,
+                message: `Emptied ${deleted} messages`,
+            });
+        } finally {
+            lock.release();
+        }
+
+        await client.logout();
+    } finally {
+        client.close();
+    }
+
+    return { deleted, errors };
+}
+
+// --- Delete selected trash messages (permanent delete) ---
+export async function deleteTrashMessages(
+    settings: ImapConnectionSettings,
+    messageIds: string[],
+    onProgress?: ProgressCallback
+): Promise<EmptyTrashResult> {
+    let deleted = 0;
+    let errors = 0;
+
+    if (messageIds.length === 0) return { deleted: 0, errors: 0 };
+
+    // Parse message IDs to get UIDs (they're all in trash folder)
+    const uids: number[] = messageIds.map(id => {
+        const { uid } = parseImapMessageId(id);
+        return uid;
+    });
+
+    const client = createImapClient(settings);
+    try {
+        await client.connect();
+        const trashPath = await findTrashFolder(client);
+        const lock = await client.getMailboxLock(trashPath);
+
+        try {
+            onProgress?.({ current: 0, total: uids.length, message: 'Deleting selected...' });
+
+            try {
+                await client.messageFlagsAdd(uids, ['\\Deleted'], { uid: true });
+                await client.messageDelete(uids, { uid: true });
+                deleted = uids.length;
+            } catch (e) {
+                console.error('[IMAP] deleteTrashMessages failed:', e);
+                errors = uids.length;
+            }
+
+            onProgress?.({
+                current: deleted,
+                total: uids.length,
+                message: `Deleted ${deleted} messages`,
+            });
+        } finally {
+            lock.release();
+        }
+
+        await client.logout();
+    } finally {
+        client.close();
+    }
+
+    return { deleted, errors };
 }
 
 // Re-export shared functions

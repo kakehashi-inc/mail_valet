@@ -15,7 +15,10 @@ import type {
     DeleteSettings,
     AIJudgment,
     EmailBodyParts,
+    RuleLine,
+    EmptyTrashResult,
 } from '../../shared/types';
+import { matchesRuleLine } from './rule-matcher';
 import {
     GMAIL_API_BASE,
     GOOGLE_OAUTH_AUTH_URL,
@@ -693,6 +696,263 @@ export async function trashByMessageIds(
     }
 
     return { trashed: totalTrashed, excluded: 0, errors: totalErrors };
+}
+
+// --- Bulk delete by Rule (all-period) ---
+export async function searchAndTrashByRule(
+    accountId: string,
+    ruleLines: RuleLine[],
+    deleteSettings: DeleteSettings,
+    clientId: string,
+    clientSecret: string,
+    onProgress?: ProgressCallback
+): Promise<DeleteResult> {
+    let totalTrashed = 0;
+    let totalExcluded = 0;
+    let totalErrors = 0;
+
+    for (let i = 0; i < ruleLines.length; i++) {
+        const ruleLine = ruleLines[i];
+        onProgress?.({
+            current: i,
+            total: ruleLines.length,
+            message: `Processing rule: ${ruleLine.rawText} (${i + 1}/${ruleLines.length})`,
+        });
+
+        // Build exclusion query parts
+        const exclusions: string[] = [];
+        if (deleteSettings.excludeImportant) exclusions.push('-is:important');
+        if (deleteSettings.excludeStarred) exclusions.push('-is:starred');
+
+        // For rule-based search, we need to fetch messages and filter client-side
+        // Try to extract a simple search query from subject patterns for initial filtering
+        let searchQuery = exclusions.join(' ');
+
+        // Get all message IDs matching the basic query
+        const messageIds = await searchMessageIds(accountId, clientId, clientSecret, searchQuery || 'in:anywhere');
+
+        // Fetch message details and filter by rule
+        const matchingIds: string[] = [];
+        const batchSize = 50;
+
+        for (let j = 0; j < messageIds.length; j += batchSize) {
+            const batch = messageIds.slice(j, j + batchSize);
+            const results = await Promise.allSettled(
+                batch.map(id =>
+                    gmailFetch(accountId, clientId, clientSecret, `/messages/${id}?format=metadata&metadataHeaders=Subject`)
+                )
+            );
+
+            for (const result of results) {
+                if (result.status === 'fulfilled') {
+                    const msg = result.value;
+                    const subjectHeader = msg.payload?.headers?.find(
+                        (h: any) => h.name.toLowerCase() === 'subject'
+                    );
+                    const subject = subjectHeader?.value || '';
+
+                    // For rule matching, we need body content for body patterns
+                    // For simplicity in bulk delete, only check subject patterns
+                    // Body patterns are more complex and slower
+                    const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
+
+                    if (hasBodyPattern) {
+                        // Need to fetch body for matching
+                        try {
+                            const fullMsg = await gmailFetch(
+                                accountId,
+                                clientId,
+                                clientSecret,
+                                `/messages/${msg.id}?format=full`
+                            );
+                            const bodyParts = extractBodyParts(fullMsg.payload);
+                            if (matchesRuleLine(ruleLine, subject, bodyParts)) {
+                                matchingIds.push(msg.id);
+                            }
+                        } catch {
+                            // Skip if fetch fails
+                        }
+                    } else {
+                        // Subject-only matching
+                        if (matchesRuleLine(ruleLine, subject, { plain: '', html: '' })) {
+                            matchingIds.push(msg.id);
+                        }
+                    }
+                }
+            }
+
+            onProgress?.({
+                current: i,
+                total: ruleLines.length,
+                message: `Checking: ${ruleLine.rawText} ${Math.min(j + batchSize, messageIds.length)}/${messageIds.length}`,
+            });
+        }
+
+        // Trash matching messages
+        const trashBatchSize = 20;
+        for (let j = 0; j < matchingIds.length; j += trashBatchSize) {
+            const batch = matchingIds.slice(j, j + trashBatchSize);
+            const results = await Promise.allSettled(
+                batch.map(id =>
+                    gmailFetch(accountId, clientId, clientSecret, `/messages/${id}/trash`, { method: 'POST' })
+                )
+            );
+            for (const result of results) {
+                if (result.status === 'fulfilled') totalTrashed++;
+                else totalErrors++;
+            }
+            onProgress?.({
+                current: i,
+                total: ruleLines.length,
+                message: `Deleting: ${ruleLine.rawText} ${Math.min(j + trashBatchSize, matchingIds.length)}/${matchingIds.length}`,
+            });
+        }
+    }
+
+    return { trashed: totalTrashed, excluded: totalExcluded, errors: totalErrors };
+}
+
+// --- Fetch trash emails ---
+export async function fetchTrashEmails(
+    accountId: string,
+    clientId: string,
+    clientSecret: string,
+    onProgress?: ProgressCallback
+): Promise<EmailMessage[]> {
+    const messages: EmailMessage[] = [];
+    const messageIds: string[] = [];
+    let pageToken: string | undefined;
+
+    // Get all message IDs in trash
+    do {
+        const params = new URLSearchParams({ labelIds: 'TRASH', maxResults: '500' });
+        if (pageToken) params.set('pageToken', pageToken);
+        const data = await gmailFetch(accountId, clientId, clientSecret, `/messages?${params}`);
+        const msgs = data.messages || [];
+        messageIds.push(...msgs.map((m: any) => m.id));
+        pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    if (messageIds.length === 0) return [];
+
+    onProgress?.({ current: 0, total: messageIds.length, message: 'Loading trash...' });
+
+    // Fetch message details
+    const batchSize = 20;
+    for (let i = 0; i < messageIds.length; i += batchSize) {
+        const batch = messageIds.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+            batch.map(id =>
+                gmailFetch(accountId, clientId, clientSecret, `/messages/${id}?format=metadata`)
+            )
+        );
+
+        for (const result of results) {
+            if (result.status === 'fulfilled') {
+                const parsed = parseMessage(result.value);
+                messages.push(parsed);
+            }
+        }
+
+        onProgress?.({
+            current: Math.min(i + batchSize, messageIds.length),
+            total: messageIds.length,
+            message: `Loading trash: ${Math.min(i + batchSize, messageIds.length)}/${messageIds.length}`,
+        });
+    }
+
+    return messages;
+}
+
+// --- Empty trash (permanent delete) ---
+export async function emptyTrash(
+    accountId: string,
+    clientId: string,
+    clientSecret: string,
+    onProgress?: ProgressCallback
+): Promise<EmptyTrashResult> {
+    let deleted = 0;
+    let errors = 0;
+
+    // Get all message IDs in trash
+    const messageIds: string[] = [];
+    let pageToken: string | undefined;
+
+    do {
+        const params = new URLSearchParams({ labelIds: 'TRASH', maxResults: '500' });
+        if (pageToken) params.set('pageToken', pageToken);
+        const data = await gmailFetch(accountId, clientId, clientSecret, `/messages?${params}`);
+        const msgs = data.messages || [];
+        messageIds.push(...msgs.map((m: any) => m.id));
+        pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    if (messageIds.length === 0) return { deleted: 0, errors: 0 };
+
+    onProgress?.({ current: 0, total: messageIds.length, message: 'Emptying trash...' });
+
+    // Permanently delete messages
+    const batchSize = 20;
+    for (let i = 0; i < messageIds.length; i += batchSize) {
+        const batch = messageIds.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+            batch.map(id =>
+                gmailFetch(accountId, clientId, clientSecret, `/messages/${id}`, { method: 'DELETE' })
+            )
+        );
+
+        for (const result of results) {
+            if (result.status === 'fulfilled') deleted++;
+            else errors++;
+        }
+
+        onProgress?.({
+            current: Math.min(i + batchSize, messageIds.length),
+            total: messageIds.length,
+            message: `Emptying trash: ${Math.min(i + batchSize, messageIds.length)}/${messageIds.length}`,
+        });
+    }
+
+    return { deleted, errors };
+}
+
+// --- Delete selected trash messages (permanent delete) ---
+export async function deleteTrashMessages(
+    accountId: string,
+    messageIds: string[],
+    clientId: string,
+    clientSecret: string,
+    onProgress?: ProgressCallback
+): Promise<EmptyTrashResult> {
+    let deleted = 0;
+    let errors = 0;
+
+    if (messageIds.length === 0) return { deleted: 0, errors: 0 };
+
+    onProgress?.({ current: 0, total: messageIds.length, message: 'Deleting selected...' });
+
+    const batchSize = 20;
+    for (let i = 0; i < messageIds.length; i += batchSize) {
+        const batch = messageIds.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+            batch.map(id =>
+                gmailFetch(accountId, clientId, clientSecret, `/messages/${id}`, { method: 'DELETE' })
+            )
+        );
+
+        for (const result of results) {
+            if (result.status === 'fulfilled') deleted++;
+            else errors++;
+        }
+
+        onProgress?.({
+            current: Math.min(i + batchSize, messageIds.length),
+            total: messageIds.length,
+            message: `Deleting: ${Math.min(i + batchSize, messageIds.length)}/${messageIds.length}`,
+        });
+    }
+
+    return { deleted, errors };
 }
 
 // --- Cache ---

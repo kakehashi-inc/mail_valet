@@ -4,6 +4,7 @@ import type { AppInfo } from '@shared/types';
 interface AppStoreState {
     info: AppInfo | null;
     isDetailView: boolean;
+    isTrashView: boolean;
     settingsOpen: boolean;
     statusMessage: string;
     initialize: () => Promise<void>;
@@ -15,6 +16,7 @@ interface AppStoreState {
 export const useAppStore = create<AppStoreState>((set, get) => ({
     info: null,
     isDetailView: false,
+    isTrashView: false,
     settingsOpen: false,
     statusMessage: '',
 
@@ -22,7 +24,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         const info = await window.mailvalet.getAppInfo();
         const params = new URLSearchParams(window.location.search);
         const isDetailView = params.get('detail') === '1';
-        set({ info, isDetailView });
+        const isTrashView = params.get('trash') === '1';
+        set({ info, isDetailView, isTrashView });
     },
 
     updateInfo: partial => {

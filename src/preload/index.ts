@@ -36,6 +36,8 @@ const CH = {
     ACCOUNTS_TEST_IMAP: 'accounts:testImap',
     ACCOUNTS_GET_IMAP_SETTINGS: 'accounts:getImapSettings',
     ACCOUNTS_UPDATE_IMAP: 'accounts:updateImap',
+    ACCOUNTS_GET_RULES: 'accounts:getRules',
+    ACCOUNTS_SAVE_RULES: 'accounts:saveRules',
     MAIL_FETCH_EMAILS: 'mail:fetchEmails',
     MAIL_CANCEL_FETCH: 'mail:cancelFetch',
     MAIL_GET_EMAIL_BODY: 'mail:getEmailBody',
@@ -44,6 +46,8 @@ const CH = {
     MAIL_BULK_DELETE_BY_FROM: 'mail:bulkDeleteByFrom',
     MAIL_DELETE_BY_MESSAGE_IDS: 'mail:deleteByMessageIds',
     MAIL_BULK_DELETE_BY_SUBJECT: 'mail:bulkDeleteBySubject',
+    MAIL_BULK_DELETE_BY_RULE: 'mail:bulkDeleteByRule',
+    MAIL_BUILD_RULE_GROUPS: 'mail:buildRuleGroups',
     MAIL_GET_CACHED_RESULT: 'mail:getCachedResult',
     OLLAMA_TEST_CONNECTION: 'ollama:testConnection',
     OLLAMA_GET_MODELS: 'ollama:getModels',
@@ -55,6 +59,11 @@ const CH = {
     DATA_IMPORT_SETTINGS: 'data:importSettings',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
+    TRASH_OPEN: 'trash:open',
+    TRASH_GET_DATA: 'trash:getData',
+    TRASH_FETCH: 'trash:fetch',
+    TRASH_EMPTY: 'trash:empty',
+    TRASH_DELETE_SELECTED: 'trash:deleteSelected',
     EVENT_FETCH_PROGRESS: 'event:fetchProgress',
     EVENT_AI_PROGRESS: 'event:aiProgress',
     EVENT_DETAIL_DATA: 'event:detailData',
@@ -102,6 +111,8 @@ const api: IpcApi = {
     testImapConnection: settings => ipcRenderer.invoke(CH.ACCOUNTS_TEST_IMAP, settings),
     getImapSettings: accountId => ipcRenderer.invoke(CH.ACCOUNTS_GET_IMAP_SETTINGS, accountId),
     updateImapSettings: (accountId, settings) => ipcRenderer.invoke(CH.ACCOUNTS_UPDATE_IMAP, accountId, settings),
+    getAccountRules: accountId => ipcRenderer.invoke(CH.ACCOUNTS_GET_RULES, accountId),
+    saveAccountRules: (accountId, rules) => ipcRenderer.invoke(CH.ACCOUNTS_SAVE_RULES, accountId, rules),
 
     // Mail
     fetchEmails: options => ipcRenderer.invoke(CH.MAIL_FETCH_EMAILS, options),
@@ -115,6 +126,9 @@ const api: IpcApi = {
         ipcRenderer.invoke(CH.MAIL_DELETE_BY_MESSAGE_IDS, accountId, messageIds),
     bulkDeleteBySubject: (accountId, subjects) =>
         ipcRenderer.invoke(CH.MAIL_BULK_DELETE_BY_SUBJECT, accountId, subjects),
+    bulkDeleteByRule: (accountId, ruleLines) =>
+        ipcRenderer.invoke(CH.MAIL_BULK_DELETE_BY_RULE, accountId, ruleLines),
+    buildRuleGroups: (accountId, mode) => ipcRenderer.invoke(CH.MAIL_BUILD_RULE_GROUPS, accountId, mode),
     getCachedResult: (accountId, mode) => ipcRenderer.invoke(CH.MAIL_GET_CACHED_RESULT, accountId, mode),
 
     // Ollama
@@ -132,6 +146,14 @@ const api: IpcApi = {
     // Detail
     openDetailWindow: data => ipcRenderer.invoke(CH.DETAIL_OPEN, data),
     getDetailData: () => ipcRenderer.invoke(CH.DETAIL_GET_DATA),
+
+    // Trash
+    openTrashWindow: accountId => ipcRenderer.invoke(CH.TRASH_OPEN, accountId),
+    getTrashData: () => ipcRenderer.invoke(CH.TRASH_GET_DATA),
+    fetchTrash: accountId => ipcRenderer.invoke(CH.TRASH_FETCH, accountId),
+    emptyTrash: accountId => ipcRenderer.invoke(CH.TRASH_EMPTY, accountId),
+    deleteTrashMessages: (accountId, messageIds) =>
+        ipcRenderer.invoke(CH.TRASH_DELETE_SELECTED, accountId, messageIds),
 
     // State
     getAppState: () => ipcRenderer.invoke(CH.STATE_GET),

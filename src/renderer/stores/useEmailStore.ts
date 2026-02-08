@@ -5,6 +5,7 @@ import type {
     FetchMode,
     FromGroup,
     SubjectGroup,
+    RuleGroup,
     GroupMode,
     AIJudgment,
     EmailMessage,
@@ -20,6 +21,7 @@ interface EmailStoreState {
     groupMode: GroupMode;
     fromGroups: FromGroup[];
     subjectGroups: SubjectGroup[];
+    ruleGroups: RuleGroup[];
     selectedGroupKeys: Set<string>;
     sortKey: SortKey;
     sortAsc: boolean;
@@ -33,6 +35,7 @@ interface EmailStoreState {
     setGroupMode: (mode: GroupMode, accountId?: string) => void;
     loadGroupMode: (accountId: string) => Promise<void>;
     loadCachedResult: (accountId: string, mode?: FetchMode) => Promise<void>;
+    loadRuleGroups: (accountId: string) => Promise<void>;
     fetchEmails: (accountId: string, startDate?: string, endDate?: string, useDays?: boolean) => Promise<void>;
     cancelFetch: () => Promise<void>;
     setSortKey: (key: SortKey) => void;
@@ -46,6 +49,7 @@ interface EmailStoreState {
     updateAIScores: (judgments: Map<string, AIJudgment>) => void;
     getFilteredFromGroups: () => FromGroup[];
     getFilteredSubjectGroups: () => SubjectGroup[];
+    getFilteredRuleGroups: () => RuleGroup[];
     clear: () => void;
 }
 
@@ -85,6 +89,29 @@ function applySortSubject(groups: SubjectGroup[], key: SortKey, asc: boolean): S
                 break;
             case 'name':
                 cmp = a.subject.localeCompare(b.subject);
+                break;
+            case 'date':
+                cmp = new Date(a.latestDate).getTime() - new Date(b.latestDate).getTime();
+                break;
+        }
+        return asc ? cmp : -cmp;
+    });
+    return sorted;
+}
+
+function applySortRule(groups: RuleGroup[], key: SortKey, asc: boolean): RuleGroup[] {
+    const sorted = [...groups];
+    sorted.sort((a, b) => {
+        let cmp = 0;
+        switch (key) {
+            case 'count':
+                cmp = a.count - b.count;
+                break;
+            case 'frequency':
+                cmp = a.frequency - b.frequency;
+                break;
+            case 'name':
+                cmp = a.ruleText.localeCompare(b.ruleText);
                 break;
             case 'date':
                 cmp = new Date(a.latestDate).getTime() - new Date(b.latestDate).getTime();
@@ -165,6 +192,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     groupMode: 'from',
     fromGroups: [],
     subjectGroups: [],
+    ruleGroups: [],
     selectedGroupKeys: new Set(),
     sortKey: 'count',
     sortAsc: false,
@@ -183,6 +211,10 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
                 const groupModes = { ...(state.groupModes || {}), [accountId]: mode };
                 window.mailvalet.saveAppState({ groupModes });
             });
+            // Load rule groups when switching to rule mode
+            if (mode === 'rule') {
+                get().loadRuleGroups(accountId);
+            }
         }
     },
 
@@ -190,6 +222,21 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
         const state = await window.mailvalet.getAppState();
         const mode = state.groupModes?.[accountId] || 'from';
         set({ groupMode: mode, selectedGroupKeys: new Set() });
+        // Load rule groups if current mode is rule
+        if (mode === 'rule') {
+            await get().loadRuleGroups(accountId);
+        }
+    },
+
+    loadRuleGroups: async accountId => {
+        const { fetchMode, sortKey, sortAsc } = get();
+        try {
+            const groups = await window.mailvalet.buildRuleGroups(accountId, fetchMode);
+            set({ ruleGroups: applySortRule(groups, sortKey, sortAsc) });
+        } catch (e) {
+            console.error('Failed to load rule groups:', e);
+            set({ ruleGroups: [] });
+        }
     },
 
     loadCachedResult: async (accountId, mode) => {
@@ -258,13 +305,14 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
     },
 
     setSortKey: key => {
-        const { sortKey, sortAsc, fromGroups, subjectGroups } = get();
+        const { sortKey, sortAsc, fromGroups, subjectGroups, ruleGroups } = get();
         const newAsc = sortKey === key ? !sortAsc : false;
         set({
             sortKey: key,
             sortAsc: newAsc,
             fromGroups: applySort(fromGroups, key, newAsc),
             subjectGroups: applySortSubject(subjectGroups, key, newAsc),
+            ruleGroups: applySortRule(ruleGroups, key, newAsc),
         });
     },
 
@@ -285,9 +333,12 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
             if (groupMode === 'from') {
                 const filtered = get().getFilteredFromGroups();
                 set({ selectedGroupKeys: new Set(filtered.map(g => g.fromAddress)) });
-            } else {
+            } else if (groupMode === 'subject') {
                 const filtered = get().getFilteredSubjectGroups();
                 set({ selectedGroupKeys: new Set(filtered.map(g => g.subject)) });
+            } else {
+                const filtered = get().getFilteredRuleGroups();
+                set({ selectedGroupKeys: new Set(filtered.map(g => g.ruleKey)) });
             }
         } else {
             set({ selectedGroupKeys: new Set() });
@@ -393,12 +444,39 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
         });
     },
 
+    getFilteredRuleGroups: () => {
+        const { ruleGroups, searchQuery, aiFilterMarketing, aiFilterSpam } = get();
+        return ruleGroups.filter(g => {
+            // Text filter
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const matchRule = g.ruleText.toLowerCase().includes(q);
+                const matchFrom = g.refFrom.toLowerCase().includes(q);
+                const matchSubject = g.refSubject.toLowerCase().includes(q);
+                if (!matchRule && !matchFrom && !matchSubject) return false;
+            }
+            // AI filter
+            if (g.aiScoreRange.marketing[0] >= 0) {
+                if (
+                    g.aiScoreRange.marketing[1] < aiFilterMarketing[0] ||
+                    g.aiScoreRange.marketing[0] > aiFilterMarketing[1]
+                )
+                    return false;
+            }
+            if (g.aiScoreRange.spam[0] >= 0) {
+                if (g.aiScoreRange.spam[1] < aiFilterSpam[0] || g.aiScoreRange.spam[0] > aiFilterSpam[1]) return false;
+            }
+            return true;
+        });
+    },
+
     clear: () => {
         set({
             samplingResult: null,
             samplingMeta: null,
             fromGroups: [],
             subjectGroups: [],
+            ruleGroups: [],
             selectedGroupKeys: new Set(),
         });
         useProgressStore.setState({ fetchProgress: null, aiProgress: null });
