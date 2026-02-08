@@ -232,13 +232,11 @@ export async function importAccountData(json: string): Promise<{ imported: numbe
             throw new Error('Invalid export data format');
         }
 
-        // Import encryption key first (if no local key exists)
+        // Import encryption key first (overwrite existing key)
         if (data.encryptionKey) {
             try {
-                const imported = importEncryptionKey(data.encryptionKey);
-                if (imported) {
-                    console.log('[AccountManager] Imported encryption key from export');
-                }
+                importEncryptionKey(data.encryptionKey);
+                console.log('[AccountManager] Imported encryption key from export');
             } catch (e) {
                 errors.push(`Encryption key: ${e instanceof Error ? e.message : 'unknown error'}`);
             }
@@ -257,20 +255,15 @@ export async function importAccountData(json: string): Promise<{ imported: numbe
             }
         }
 
-        // Get existing accounts to check for duplicates
+        // Build email-to-id map for existing accounts
         const existingAccounts = await getAllAccounts();
-        const existingEmails = new Set(existingAccounts.map(a => a.email.toLowerCase()));
+        const existingEmailMap = new Map(existingAccounts.map(a => [a.email.toLowerCase(), a.id]));
 
         for (const accountData of data.accounts) {
             try {
-                // Skip if account with same email already exists
-                if (existingEmails.has(accountData.email.toLowerCase())) {
-                    errors.push(`${accountData.email}: account already exists`);
-                    continue;
-                }
-
-                // Create account directory
-                const id = generateAccountId();
+                // Use existing account ID if same email exists, otherwise create new
+                const existingId = existingEmailMap.get(accountData.email.toLowerCase());
+                const id = existingId || generateAccountId();
                 const accountDir = getAccountDir(id);
                 const cacheDir = getAccountCacheDir(id);
                 await ensureDir(accountDir);
@@ -288,7 +281,7 @@ export async function importAccountData(json: string): Promise<{ imported: numbe
                 // Save labels
                 if (accountData.labels) {
                     await saveSelectedLabels(id, accountData.labels);
-                } else {
+                } else if (!existingId) {
                     await writeJsonFile(getAccountLabelsPath(id), { selectedLabelIds: ['INBOX'] });
                 }
 
@@ -308,7 +301,6 @@ export async function importAccountData(json: string): Promise<{ imported: numbe
                 }
 
                 imported++;
-                existingEmails.add(accountData.email.toLowerCase());
             } catch (e) {
                 errors.push(`${accountData.email}: ${e instanceof Error ? e.message : 'unknown error'}`);
             }

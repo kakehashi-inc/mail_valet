@@ -168,12 +168,7 @@ export function exportEncryptionKey(): string {
     return key.toString('base64');
 }
 
-export function importEncryptionKey(base64Key: string): boolean {
-    const keyPath = getEncryptionKeyPath();
-    if (fs.existsSync(keyPath)) {
-        return false; // Key already exists
-    }
-
+export function importEncryptionKey(base64Key: string): void {
     const key = Buffer.from(base64Key, 'base64');
     if (key.length !== KEY_LENGTH) {
         throw new Error('Invalid encryption key format');
@@ -181,7 +176,6 @@ export function importEncryptionKey(base64Key: string): boolean {
 
     saveKey(key);
     cachedKey = key;
-    return true;
 }
 
 // ===========================================================================
