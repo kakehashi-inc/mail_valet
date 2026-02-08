@@ -59,6 +59,7 @@ const CH = {
     DATA_IMPORT_SETTINGS: 'data:importSettings',
     DATA_EXPORT_ACCOUNT_DATA: 'data:exportAccountData',
     DATA_IMPORT_ACCOUNT_DATA: 'data:importAccountData',
+    DATA_SAVE_FILE: 'data:saveFile',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
     TRASH_OPEN: 'trash:open',
@@ -128,8 +129,7 @@ const api: IpcApi = {
         ipcRenderer.invoke(CH.MAIL_DELETE_BY_MESSAGE_IDS, accountId, messageIds),
     bulkDeleteBySubject: (accountId, subjects) =>
         ipcRenderer.invoke(CH.MAIL_BULK_DELETE_BY_SUBJECT, accountId, subjects),
-    bulkDeleteByRule: (accountId, ruleLines) =>
-        ipcRenderer.invoke(CH.MAIL_BULK_DELETE_BY_RULE, accountId, ruleLines),
+    bulkDeleteByRule: (accountId, ruleLines) => ipcRenderer.invoke(CH.MAIL_BULK_DELETE_BY_RULE, accountId, ruleLines),
     buildRuleGroups: (accountId, mode) => ipcRenderer.invoke(CH.MAIL_BUILD_RULE_GROUPS, accountId, mode),
     getCachedResult: (accountId, mode) => ipcRenderer.invoke(CH.MAIL_GET_CACHED_RESULT, accountId, mode),
 
@@ -147,6 +147,7 @@ const api: IpcApi = {
     importSettings: json => ipcRenderer.invoke(CH.DATA_IMPORT_SETTINGS, json),
     exportAccountData: () => ipcRenderer.invoke(CH.DATA_EXPORT_ACCOUNT_DATA),
     importAccountData: json => ipcRenderer.invoke(CH.DATA_IMPORT_ACCOUNT_DATA, json),
+    saveFile: (content, defaultName) => ipcRenderer.invoke(CH.DATA_SAVE_FILE, content, defaultName),
 
     // Detail
     openDetailWindow: data => ipcRenderer.invoke(CH.DETAIL_OPEN, data),
@@ -157,8 +158,7 @@ const api: IpcApi = {
     getTrashData: () => ipcRenderer.invoke(CH.TRASH_GET_DATA),
     fetchTrash: accountId => ipcRenderer.invoke(CH.TRASH_FETCH, accountId),
     emptyTrash: accountId => ipcRenderer.invoke(CH.TRASH_EMPTY, accountId),
-    deleteTrashMessages: (accountId, messageIds) =>
-        ipcRenderer.invoke(CH.TRASH_DELETE_SELECTED, accountId, messageIds),
+    deleteTrashMessages: (accountId, messageIds) => ipcRenderer.invoke(CH.TRASH_DELETE_SELECTED, accountId, messageIds),
 
     // State
     getAppState: () => ipcRenderer.invoke(CH.STATE_GET),

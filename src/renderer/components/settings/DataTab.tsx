@@ -10,32 +10,30 @@ import ConfirmDialog from '../ConfirmDialog';
 export default function DataTab() {
     const { t } = useTranslation();
     const [confirmAction, setConfirmAction] = React.useState<string | null>(null);
-    const [status, setStatus] = React.useState<{ message: string; severity: 'success' | 'error' | 'warning' } | null>(
-        null
-    );
+    const [status, setStatus] = React.useState<{
+        message: string;
+        severity: 'success' | 'error' | 'warning';
+        section: 'cache' | 'settings' | 'account';
+    } | null>(null);
 
     const handleClearAICache = async () => {
         await window.mailvalet.clearAICache();
-        setStatus({ message: t('data.aiCacheCleared'), severity: 'success' });
+        setStatus({ message: t('data.aiCacheCleared'), severity: 'success', section: 'cache' });
         setConfirmAction(null);
     };
 
     const handleClearAllCache = async () => {
         await window.mailvalet.clearAllCache();
-        setStatus({ message: t('data.allCacheCleared'), severity: 'success' });
+        setStatus({ message: t('data.allCacheCleared'), severity: 'success', section: 'cache' });
         setConfirmAction(null);
     };
 
     const handleExport = async () => {
         const json = await window.mailvalet.exportSettings();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'mailvalet-settings.json';
-        a.click();
-        URL.revokeObjectURL(url);
-        setStatus({ message: t('data.exported'), severity: 'success' });
+        const saved = await window.mailvalet.saveFile(json, 'mailvalet-settings.json');
+        if (saved) {
+            setStatus({ message: t('data.exported'), severity: 'success', section: 'settings' });
+        }
     };
 
     const handleImport = async () => {
@@ -47,21 +45,17 @@ export default function DataTab() {
             if (!file) return;
             const text = await file.text();
             await window.mailvalet.importSettings(text);
-            setStatus({ message: t('data.imported'), severity: 'success' });
+            setStatus({ message: t('data.imported'), severity: 'success', section: 'settings' });
         };
         input.click();
     };
 
     const handleExportAccountData = async () => {
         const json = await window.mailvalet.exportAccountData();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'mailvalet-accounts.json';
-        a.click();
-        URL.revokeObjectURL(url);
-        setStatus({ message: t('data.accountExported'), severity: 'success' });
+        const saved = await window.mailvalet.saveFile(json, 'mailvalet-accounts.json');
+        if (saved) {
+            setStatus({ message: t('data.accountExported'), severity: 'success', section: 'account' });
+        }
     };
 
     const handleImportAccountData = async () => {
@@ -80,11 +74,13 @@ export default function DataTab() {
                         errors: result.errors.length,
                     }),
                     severity: 'warning',
+                    section: 'account',
                 });
             } else {
                 setStatus({
                     message: t('data.accountImported', { count: result.imported }),
                     severity: 'success',
+                    section: 'account',
                 });
             }
         };
@@ -116,6 +112,11 @@ export default function DataTab() {
                         {t('data.clearAllCache')}
                     </Button>
                 </Box>
+                {status?.section === 'cache' && (
+                    <Alert severity={status.severity} onClose={() => setStatus(null)} sx={{ mt: 1 }}>
+                        {status.message}
+                    </Alert>
+                )}
             </Box>
 
             <Divider />
@@ -132,6 +133,11 @@ export default function DataTab() {
                         {t('data.importSettings')}
                     </Button>
                 </Box>
+                {status?.section === 'settings' && (
+                    <Alert severity={status.severity} onClose={() => setStatus(null)} sx={{ mt: 1 }}>
+                        {status.message}
+                    </Alert>
+                )}
             </Box>
 
             <Divider />
@@ -161,13 +167,12 @@ export default function DataTab() {
                         {t('data.importAccountData')}
                     </Button>
                 </Box>
+                {status?.section === 'account' && (
+                    <Alert severity={status.severity} onClose={() => setStatus(null)} sx={{ mt: 1 }}>
+                        {status.message}
+                    </Alert>
+                )}
             </Box>
-
-            {status && (
-                <Alert severity={status.severity} onClose={() => setStatus(null)}>
-                    {status.message}
-                </Alert>
-            )}
 
             <ConfirmDialog
                 open={confirmAction === 'aiCache'}

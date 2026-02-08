@@ -739,16 +739,19 @@ export async function searchAndTrashByRule(
             const batch = messageIds.slice(j, j + batchSize);
             const results = await Promise.allSettled(
                 batch.map(id =>
-                    gmailFetch(accountId, clientId, clientSecret, `/messages/${id}?format=metadata&metadataHeaders=Subject`)
+                    gmailFetch(
+                        accountId,
+                        clientId,
+                        clientSecret,
+                        `/messages/${id}?format=metadata&metadataHeaders=Subject`
+                    )
                 )
             );
 
             for (const result of results) {
                 if (result.status === 'fulfilled') {
                     const msg = result.value;
-                    const subjectHeader = msg.payload?.headers?.find(
-                        (h: any) => h.name.toLowerCase() === 'subject'
-                    );
+                    const subjectHeader = msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === 'subject');
                     const subject = subjectHeader?.value || '';
 
                     // For rule matching, we need body content for body patterns
@@ -842,9 +845,7 @@ export async function fetchTrashEmails(
     for (let i = 0; i < messageIds.length; i += batchSize) {
         const batch = messageIds.slice(i, i + batchSize);
         const results = await Promise.allSettled(
-            batch.map(id =>
-                gmailFetch(accountId, clientId, clientSecret, `/messages/${id}?format=metadata`)
-            )
+            batch.map(id => gmailFetch(accountId, clientId, clientSecret, `/messages/${id}?format=metadata`))
         );
 
         for (const result of results) {
@@ -896,9 +897,7 @@ export async function emptyTrash(
     for (let i = 0; i < messageIds.length; i += batchSize) {
         const batch = messageIds.slice(i, i + batchSize);
         const results = await Promise.allSettled(
-            batch.map(id =>
-                gmailFetch(accountId, clientId, clientSecret, `/messages/${id}`, { method: 'DELETE' })
-            )
+            batch.map(id => gmailFetch(accountId, clientId, clientSecret, `/messages/${id}`, { method: 'DELETE' }))
         );
 
         for (const result of results) {
@@ -935,9 +934,7 @@ export async function deleteTrashMessages(
     for (let i = 0; i < messageIds.length; i += batchSize) {
         const batch = messageIds.slice(i, i + batchSize);
         const results = await Promise.allSettled(
-            batch.map(id =>
-                gmailFetch(accountId, clientId, clientSecret, `/messages/${id}`, { method: 'DELETE' })
-            )
+            batch.map(id => gmailFetch(accountId, clientId, clientSecret, `/messages/${id}`, { method: 'DELETE' }))
         );
 
         for (const result of results) {

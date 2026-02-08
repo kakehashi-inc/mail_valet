@@ -104,6 +104,33 @@ export default function AccountsTab() {
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Typography variant="h6">{t('settings.accountsTitle')}</Typography>
+            {hasGmailAccounts && <Alert severity="info">{t('settings.gcpRequired')}</Alert>}
+            <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={e => setAddMenuAnchor(e.currentTarget)}
+                sx={{ alignSelf: 'flex-start' }}
+            >
+                {t('account.addAccount')}
+            </Button>
+            <Menu
+                anchorEl={addMenuAnchor}
+                open={Boolean(addMenuAnchor)}
+                onClose={() => setAddMenuAnchor(null)}
+            >
+                <MenuItem onClick={handleAddGmail}>
+                    <ListItemIcon>
+                        <EmailIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Gmail</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleAddImap}>
+                    <ListItemIcon>
+                        <DnsIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>IMAP</ListItemText>
+                </MenuItem>
+            </Menu>
             <TableContainer>
                 <Table size="small">
                     <TableHead>
@@ -185,32 +212,6 @@ export default function AccountsTab() {
                     </TableBody>
                 </Table>
             </TableContainer>
-            <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={e => setAddMenuAnchor(e.currentTarget)}
-            >
-                {t('account.addAccount')}
-            </Button>
-            <Menu
-                anchorEl={addMenuAnchor}
-                open={Boolean(addMenuAnchor)}
-                onClose={() => setAddMenuAnchor(null)}
-            >
-                <MenuItem onClick={handleAddGmail}>
-                    <ListItemIcon>
-                        <EmailIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>Gmail</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={handleAddImap}>
-                    <ListItemIcon>
-                        <DnsIcon fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>IMAP</ListItemText>
-                </MenuItem>
-            </Menu>
-            {hasGmailAccounts && <Alert severity="info">{t('settings.gcpRequired')}</Alert>}
             <Dialog
                 open={Boolean(labelAccountId)}
                 onClose={() => setLabelAccountId(null)}

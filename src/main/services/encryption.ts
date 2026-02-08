@@ -311,4 +311,3 @@ function migrateFileToNewKey(file: LegacyEncryptedFile, legacyKey: Buffer, newKe
         console.error(`[Encryption] Legacy migration: failed to migrate ${file.path}:`, e);
     }
 }
-

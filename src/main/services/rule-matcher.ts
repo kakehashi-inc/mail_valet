@@ -1,20 +1,9 @@
-import type {
-    EmailMessage,
-    EmailBodyParts,
-    RuleLine,
-    RulePattern,
-    AccountRules,
-    RuleGroup,
-} from '../../shared/types';
+import type { EmailMessage, EmailBodyParts, RuleLine, RulePattern, AccountRules, RuleGroup } from '../../shared/types';
 
 /**
  * Check if a single pattern matches the given content.
  */
-function matchesPattern(
-    pattern: RulePattern,
-    subject: string,
-    bodyParts: EmailBodyParts
-): boolean {
+function matchesPattern(pattern: RulePattern, subject: string, bodyParts: EmailBodyParts): boolean {
     try {
         const regex = new RegExp(pattern.regex, 'i');
 
@@ -24,11 +13,7 @@ function matchesPattern(
             case 'body':
                 return regex.test(bodyParts.html) || regex.test(bodyParts.plain);
             case 'any':
-                return (
-                    regex.test(subject) ||
-                    regex.test(bodyParts.html) ||
-                    regex.test(bodyParts.plain)
-                );
+                return regex.test(subject) || regex.test(bodyParts.html) || regex.test(bodyParts.plain);
             default:
                 return false;
         }
@@ -40,11 +25,7 @@ function matchesPattern(
 /**
  * Check if all patterns in a rule line match (AND condition).
  */
-export function matchesRuleLine(
-    ruleLine: RuleLine,
-    subject: string,
-    bodyParts: EmailBodyParts
-): boolean {
+export function matchesRuleLine(ruleLine: RuleLine, subject: string, bodyParts: EmailBodyParts): boolean {
     return ruleLine.patterns.every(pattern => matchesPattern(pattern, subject, bodyParts));
 }
 
@@ -52,11 +33,7 @@ export function matchesRuleLine(
  * Check if any rule line in the account rules matches (OR condition).
  * Returns the index of the first matching rule line, or -1 if none match.
  */
-export function findMatchingRuleIndex(
-    rules: AccountRules,
-    subject: string,
-    bodyParts: EmailBodyParts
-): number {
+export function findMatchingRuleIndex(rules: AccountRules, subject: string, bodyParts: EmailBodyParts): number {
     for (let i = 0; i < rules.lines.length; i++) {
         if (matchesRuleLine(rules.lines[i], subject, bodyParts)) {
             return i;
@@ -99,9 +76,7 @@ export function buildRuleGroups(
         const ruleLine = rules.lines[ruleIndex];
 
         // Sort messages by date (newest first)
-        const sorted = [...msgs].sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        const sorted = [...msgs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         // Calculate refFrom (most frequent sender)
         const fromCounts = new Map<string, number>();
@@ -121,9 +96,7 @@ export function buildRuleGroups(
         const refSubject = sorted[0]?.subject || '';
 
         // Calculate AI score ranges
-        const marketingScores = msgs
-            .filter(m => m.aiJudgment)
-            .map(m => m.aiJudgment!.marketing);
+        const marketingScores = msgs.filter(m => m.aiJudgment).map(m => m.aiJudgment!.marketing);
         const spamScores = msgs.filter(m => m.aiJudgment).map(m => m.aiJudgment!.spam);
 
         groups.push({
@@ -131,8 +104,7 @@ export function buildRuleGroups(
             ruleText: ruleLine.rawText,
             ruleLine,
             count: msgs.length,
-            frequency:
-                periodDays > 0 ? Math.round((msgs.length / periodDays) * 10) / 10 : msgs.length,
+            frequency: periodDays > 0 ? Math.round((msgs.length / periodDays) * 10) / 10 : msgs.length,
             latestDate: sorted[0]?.date || '',
             refFrom,
             refSubject,
@@ -140,10 +112,7 @@ export function buildRuleGroups(
             aiScoreRange: {
                 marketing:
                     marketingScores.length > 0
-                        ? ([Math.min(...marketingScores), Math.max(...marketingScores)] as [
-                              number,
-                              number,
-                          ])
+                        ? ([Math.min(...marketingScores), Math.max(...marketingScores)] as [number, number])
                         : ([-1, -1] as [number, number]),
                 spam:
                     spamScores.length > 0

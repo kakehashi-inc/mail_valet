@@ -361,18 +361,12 @@ export function registerAllIpcHandlers() {
             const periodDays = Math.max(
                 1,
                 Math.round(
-                    (new Date(cached.result.periodEnd).getTime() -
-                        new Date(cached.result.periodStart).getTime()) /
+                    (new Date(cached.result.periodEnd).getTime() - new Date(cached.result.periodStart).getTime()) /
                         86400000
                 )
             );
 
-            return buildRuleGroups(
-                cached.result.messages,
-                cached.result.bodyParts || {},
-                rules,
-                periodDays
-            );
+            return buildRuleGroups(cached.result.messages, cached.result.bodyParts || {}, rules, periodDays);
         }
     );
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_CACHED_RESULT, (_e, accountId: string, mode?: string) =>
@@ -417,9 +411,16 @@ export function registerAllIpcHandlers() {
     ipcMain.handle(IPC_CHANNELS.DATA_EXPORT_SETTINGS, () => settingsManager.exportAllSettings());
     ipcMain.handle(IPC_CHANNELS.DATA_IMPORT_SETTINGS, (_e, json: string) => settingsManager.importAllSettings(json));
     ipcMain.handle(IPC_CHANNELS.DATA_EXPORT_ACCOUNT_DATA, () => accountManager.exportAccountData());
-    ipcMain.handle(IPC_CHANNELS.DATA_IMPORT_ACCOUNT_DATA, (_e, json: string) =>
-        accountManager.importAccountData(json)
-    );
+    ipcMain.handle(IPC_CHANNELS.DATA_IMPORT_ACCOUNT_DATA, (_e, json: string) => accountManager.importAccountData(json));
+    ipcMain.handle(IPC_CHANNELS.DATA_SAVE_FILE, async (_e, content: string, defaultName: string) => {
+        const result = await dialog.showSaveDialog({
+            defaultPath: defaultName,
+            filters: [{ name: 'JSON', extensions: ['json'] }],
+        });
+        if (result.canceled || !result.filePath) return false;
+        await fs.writeFile(result.filePath, content, 'utf-8');
+        return true;
+    });
 
     // --- Detail window ---
     ipcMain.handle(IPC_CHANNELS.DETAIL_OPEN, async (_e, data: DetailWindowData) => {
@@ -517,12 +518,7 @@ export function registerAllIpcHandlers() {
             return imapService.fetchTrashEmails(imapSettings, onProgress);
         }
         const gcpSettings = await settingsManager.getGcpSettings();
-        return gmailService.fetchTrashEmails(
-            accountId,
-            gcpSettings.clientId,
-            gcpSettings.clientSecret,
-            onProgress
-        );
+        return gmailService.fetchTrashEmails(accountId, gcpSettings.clientId, gcpSettings.clientSecret, onProgress);
     });
 
     ipcMain.handle(IPC_CHANNELS.TRASH_EMPTY, async (_e, accountId: string): Promise<EmptyTrashResult> => {
@@ -533,12 +529,7 @@ export function registerAllIpcHandlers() {
             return imapService.emptyTrash(imapSettings, onProgress);
         }
         const gcpSettings = await settingsManager.getGcpSettings();
-        return gmailService.emptyTrash(
-            accountId,
-            gcpSettings.clientId,
-            gcpSettings.clientSecret,
-            onProgress
-        );
+        return gmailService.emptyTrash(accountId, gcpSettings.clientId, gcpSettings.clientSecret, onProgress);
     });
 
     ipcMain.handle(

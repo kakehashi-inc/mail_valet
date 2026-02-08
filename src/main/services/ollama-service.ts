@@ -332,13 +332,7 @@ export async function runAIJudgment(
         if (retryItems.length > 0 && !cancelRequested) {
             const retryResults = await Promise.allSettled(
                 retryItems.map(async ({ msg, hash, prompt }) => {
-                    const judgment = await judgeEmail(
-                        settings.host,
-                        settings.model,
-                        settings.timeout,
-                        prompt,
-                        signal
-                    );
+                    const judgment = await judgeEmail(settings.host, settings.model, settings.timeout, prompt, signal);
                     return { msgId: msg.id, hash, judgment };
                 })
             );

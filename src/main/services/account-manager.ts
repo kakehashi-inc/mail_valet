@@ -221,9 +221,7 @@ export async function exportAccountData(): Promise<string> {
     return JSON.stringify(exportData, null, 2);
 }
 
-export async function importAccountData(
-    json: string
-): Promise<{ imported: number; errors: string[] }> {
+export async function importAccountData(json: string): Promise<{ imported: number; errors: string[] }> {
     const errors: string[] = [];
     let imported = 0;
 

@@ -692,9 +692,7 @@ export async function searchAndTrashByRule(
                             }
 
                             // Check if rule has body patterns
-                            const hasBodyPattern = ruleLine.patterns.some(
-                                p => p.field === 'body' || p.field === 'any'
-                            );
+                            const hasBodyPattern = ruleLine.patterns.some(p => p.field === 'body' || p.field === 'any');
 
                             if (hasBodyPattern) {
                                 // Fetch body for matching
@@ -752,11 +750,7 @@ export async function searchAndTrashByRule(
 }
 
 // Helper to fetch body parts for a single message
-async function fetchBodyPartsForMessage(
-    client: ImapFlow,
-    uid: number,
-    bodyStructure: any
-): Promise<EmailBodyParts> {
+async function fetchBodyPartsForMessage(client: ImapFlow, uid: number, bodyStructure: any): Promise<EmailBodyParts> {
     const parts = flattenStructure(bodyStructure);
     let plain = '';
     let html = '';
@@ -806,11 +800,7 @@ export async function fetchTrashEmails(
             onProgress?.({ current: 0, total: uids.length, message: 'Loading trash...' });
 
             let processed = 0;
-            for await (const msg of client.fetch(
-                uids,
-                { envelope: true, flags: true, uid: true },
-                { uid: true }
-            )) {
+            for await (const msg of client.fetch(uids, { envelope: true, flags: true, uid: true }, { uid: true })) {
                 const env = msg.envelope;
                 const fromObj = env?.from?.[0];
                 const toObj = env?.to?.[0];

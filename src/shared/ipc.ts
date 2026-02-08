@@ -102,6 +102,7 @@ export type IpcApi = {
     importSettings(json: string): Promise<void>;
     exportAccountData(): Promise<string>;
     importAccountData(json: string): Promise<{ imported: number; errors: string[] }>;
+    saveFile(content: string, defaultName: string): Promise<boolean>;
 
     // Detail window
     openDetailWindow(data: DetailWindowData): Promise<void>;

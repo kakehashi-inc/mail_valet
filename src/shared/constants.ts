@@ -223,6 +223,7 @@ export const IPC_CHANNELS = {
     DATA_IMPORT_ACCOUNT_DATA: 'data:importAccountData',
     DATA_EXPORT_ENCRYPTION_KEY: 'data:exportEncryptionKey',
     DATA_IMPORT_ENCRYPTION_KEY: 'data:importEncryptionKey',
+    DATA_SAVE_FILE: 'data:saveFile',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
     TRASH_OPEN: 'trash:open',
