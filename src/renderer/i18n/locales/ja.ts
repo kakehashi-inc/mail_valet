@@ -61,6 +61,7 @@ export default {
         searchPlaceholder: 'From/ドメインで検索...',
         searchPlaceholderSubject: '件名/差出人で検索...',
         searchPlaceholderRule: 'ルールで検索...',
+        andOthers: '他{{count}}件',
         refFrom: '参考From',
         refSubject: '参考件名',
         noData: 'データがありません。メールを取得してください。',

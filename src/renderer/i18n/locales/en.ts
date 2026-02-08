@@ -61,6 +61,7 @@ export default {
         searchPlaceholder: 'Search by From/domain...',
         searchPlaceholderSubject: 'Search by subject/sender...',
         searchPlaceholderRule: 'Search by rule...',
+        andOthers: '+{{count}} others',
         refFrom: 'Ref. From',
         refSubject: 'Ref. Subject',
         noData: 'No data. Please fetch emails.',

@@ -236,7 +236,7 @@ export async function importAccountData(json: string): Promise<{ imported: numbe
         if (data.encryptionKey) {
             try {
                 importEncryptionKey(data.encryptionKey);
-                console.log('[AccountManager] Imported encryption key from export');
+                console.info('[AccountManager] Imported encryption key from export');
             } catch (e) {
                 errors.push(`Encryption key: ${e instanceof Error ? e.message : 'unknown error'}`);
             }

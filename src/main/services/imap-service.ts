@@ -92,7 +92,7 @@ async function waitForHostReachable(host: string, port: number): Promise<boolean
             const reachable = await tcpProbe(ip, port, probeTimeout);
             if (reachable) {
                 if (attempt > 1) {
-                    console.log(`[IMAP] Host ${host}:${port} reachable after ${attempt} attempts`);
+                    console.debug(`[IMAP] Host ${host}:${port} reachable after ${attempt} attempts`);
                 }
                 return true;
             }
@@ -358,7 +358,7 @@ export async function fetchEmails(
             }
         }
 
-        console.info(`[IMAP] Fetch complete: ${messages.length} messages, ${Object.keys(bodyPartsMap).length} bodies`);
+        console.debug(`[IMAP] Fetch complete: ${messages.length} messages, ${Object.keys(bodyPartsMap).length} bodies`);
         await client.logout();
 
         const periodDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
@@ -390,7 +390,7 @@ export async function fetchEmails(
         return result;
     } catch (e) {
         if (fetchCancelRequested) {
-            console.info('[IMAP] fetchEmails cancelled');
+            console.debug('[IMAP] fetchEmails cancelled');
             throw new Error('Fetch cancelled');
         }
         console.error('[IMAP] fetchEmails failed:', e);

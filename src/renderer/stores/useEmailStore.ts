@@ -11,6 +11,7 @@ import type {
     EmailMessage,
 } from '@shared/types';
 import { useProgressStore } from './useProgressStore';
+import i18n from '../i18n/config';
 
 type SortKey = 'count' | 'frequency' | 'name' | 'date';
 
@@ -151,7 +152,10 @@ function buildSubjectGroupsFromMessages(messages: EmailMessage[], periodDays: nu
         const sorted = [...msgs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         const otherCount = fromAddresses.length - 1;
-        const fromSummary = otherCount > 0 ? `${fromAddresses[0]} 他${otherCount}件` : fromAddresses[0] || '';
+        const fromSummary =
+            otherCount > 0
+                ? `${fromAddresses[0]} ${i18n.t('list.andOthers', { count: otherCount })}`
+                : fromAddresses[0] || '';
 
         const marketingScores = msgs.filter(m => m.aiJudgment).map(m => m.aiJudgment!.marketing);
         const spamScores = msgs.filter(m => m.aiJudgment).map(m => m.aiJudgment!.spam);

@@ -112,7 +112,6 @@ export function initializeEncryption(): void {
     const existingKey = loadKey();
     if (existingKey) {
         cachedKey = existingKey;
-        console.log('[Encryption] Initialized with existing key');
         return;
     }
 
@@ -124,16 +123,16 @@ export function initializeEncryption(): void {
     const newKey = generateRandomKey();
     saveKey(newKey);
     cachedKey = newKey;
-    console.log('[Encryption] Created new key file');
+    console.info('[Encryption] Created new key file');
 
     // Step 4: If legacy data exists, migrate it now
     if (hasLegacyData) {
-        console.log('[Encryption] Legacy data detected, starting migration...');
+        console.info('[Encryption] Legacy data detected, starting migration...');
         const legacyKey = deriveLegacyKey();
         for (const file of legacyFiles) {
             migrateFileToNewKey(file, legacyKey, newKey);
         }
-        console.log('[Encryption] Legacy migration complete');
+        console.info('[Encryption] Legacy migration complete');
     }
 }
 
@@ -299,7 +298,7 @@ function migrateFileToNewKey(file: LegacyEncryptedFile, legacyKey: Buffer, newKe
 
         if (modified) {
             fs.writeFileSync(file.path, JSON.stringify(data, null, 2));
-            console.log(`[Encryption] Legacy migration: migrated ${file.path}`);
+            console.info(`[Encryption] Legacy migration: migrated ${file.path}`);
         }
     } catch (e) {
         console.error(`[Encryption] Legacy migration: failed to migrate ${file.path}:`, e);
