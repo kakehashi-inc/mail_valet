@@ -64,6 +64,7 @@ mac:
   icon: public/icon.png
   hardenedRuntime: true
   gatekeeperAssess: false
+  notarize: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   target:
