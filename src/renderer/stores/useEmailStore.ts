@@ -251,6 +251,7 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
                 samplingMeta: cached.meta,
                 fromGroups: applySort(groups, get().sortKey, get().sortAsc),
                 subjectGroups: applySortSubject(subjGroups, get().sortKey, get().sortAsc),
+                ruleGroups: [],
                 selectedGroupKeys: new Set(),
             });
         } else {
@@ -259,8 +260,12 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
                 samplingMeta: null,
                 fromGroups: [],
                 subjectGroups: [],
+                ruleGroups: [],
                 selectedGroupKeys: new Set(),
             });
+        }
+        if (get().groupMode === 'rule') {
+            await get().loadRuleGroups(accountId);
         }
     },
 
