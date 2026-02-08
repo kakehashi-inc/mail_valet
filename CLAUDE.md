@@ -64,6 +64,6 @@ CRITICAL: You MUST read [README.md](README.md) BEFORE taking any action.
 - When implementing data models, create one file per table.
 - When creating or modifying a data model, update `Documents/テーブル定義.md`. Table definitions must be expressed as one table per database table, with column names, types, and relations documented within the table.
 - When system behavior changes, update `Documents/システム仕様.md`.
-- When adding features or fixing bugs, update the `releaseNotes` field in `electron-builder.yml`. Entries MUST be placed under the appropriate section: `## New Features` for new or enhanced functionality, and `## Bug Fixes` for bug fixes.
+- When adding features or fixing bugs, update the `releaseNotes` field in `electron-builder.yml`. Entries MUST be placed under the appropriate section: `## New Features` for new or enhanced functionality, and `## Bug Fixes` for bug fixes. All entries MUST be written in English.
 </development_rules>
 </project_details>
