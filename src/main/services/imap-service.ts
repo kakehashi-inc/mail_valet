@@ -1,5 +1,5 @@
 import net from 'net';
-import { resolve4, resolve6 } from 'dns/promises';
+import { lookup } from 'dns/promises';
 import { ImapFlow } from 'imapflow';
 import type {
     ImapConnectionSettings,
@@ -40,16 +40,16 @@ const IPV6_RE = /^[0-9a-fA-F:]+$/;
 
 async function resolveHost(host: string): Promise<string | null> {
     if (IPV4_RE.test(host) || IPV6_RE.test(host)) return host;
-    // IPv4 優先、なければ IPv6
+    // OS の getaddrinfo を使用（c-ares の resolve4/resolve6 は Windows で失敗することがある）
     try {
-        const v4 = await resolve4(host);
-        if (v4.length > 0) return v4[0];
+        const { address } = await lookup(host, { family: 4 });
+        return address;
     } catch {
-        // ignore
+        // IPv4 失敗時は IPv6 を試行
     }
     try {
-        const v6 = await resolve6(host);
-        if (v6.length > 0) return v6[0];
+        const { address } = await lookup(host, { family: 6 });
+        return address;
     } catch {
         // ignore
     }
