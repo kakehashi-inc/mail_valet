@@ -98,6 +98,7 @@ export default {
         from: 'From',
         to: 'To',
         htmlText: 'HTML(Text)',
+        attachments: 'Attachments',
         selectMessage: 'Select an email to view',
     },
 

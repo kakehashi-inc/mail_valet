@@ -308,7 +308,11 @@ export function registerAllIpcHandlers() {
                 provider === 'imap'
                     ? (msgId: string) => imapService.getEmailBodyParts(accountId, msgId)
                     : (msgId: string) => gmailService.getEmailBodyParts(accountId, msgId);
-            const judgments = await ollamaService.runAIJudgment(targetMessages, getBodyParts, progress => {
+            const getRaw =
+                provider === 'imap'
+                    ? (msgId: string) => imapService.getEmailRaw(accountId, msgId)
+                    : (msgId: string) => gmailService.getEmailRaw(accountId, msgId);
+            const judgments = await ollamaService.runAIJudgment(targetMessages, getBodyParts, getRaw, progress => {
                 if (mainWindow && !mainWindow.isDestroyed()) {
                     mainWindow.webContents.send(IPC_CHANNELS.EVENT_AI_PROGRESS, progress);
                 }

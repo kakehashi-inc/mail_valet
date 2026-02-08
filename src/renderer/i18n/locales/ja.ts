@@ -98,6 +98,7 @@ export default {
         from: '差出人',
         to: '宛先',
         htmlText: 'HTML(テキスト)',
+        attachments: '添付ファイル',
         selectMessage: 'メールを選択してください',
     },
 

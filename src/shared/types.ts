@@ -122,6 +122,12 @@ export interface EmailBodyParts {
 // ---------------------------------------------------------------------------
 // Email / Sampling
 // ---------------------------------------------------------------------------
+export type EmailAttachmentInfo = {
+    filename: string;
+    size: number;
+    mimeType: string;
+};
+
 export interface EmailMessage {
     id: string;
     threadId: string;
@@ -134,8 +140,6 @@ export interface EmailMessage {
     labelIds: string[];
     isImportant: boolean;
     isStarred: boolean;
-    body?: string;
-    rawData?: string;
     aiJudgment?: AIJudgment;
 }
 

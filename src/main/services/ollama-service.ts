@@ -1,8 +1,9 @@
 import crypto from 'crypto';
-import type { AIJudgment, AIProgress, EmailMessage, EmailBodyParts } from '../../shared/types';
+import type { AIJudgment, AIProgress, EmailMessage, EmailBodyParts, EmailAttachmentInfo } from '../../shared/types';
 import { getAIJudgmentCachePath } from '../../shared/constants';
 import { readJsonFile, writeJsonFile } from './file-manager';
 import { getOllamaSettings, getAIJudgmentSettings } from './settings-manager';
+import { parseAttachmentsFromRaw } from '../../shared/mime-utils';
 
 // Language code → English full name (for LLM prompt)
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -103,10 +104,19 @@ function selectBody(bodyParts: EmailBodyParts): SelectedBody {
 // ---------------------------------------------------------------------------
 // Cache hash — computed from the content actually sent to Ollama
 // ---------------------------------------------------------------------------
-function computeContentHash(subject: string, bodyContent: string, allowedLanguages: string[]): string {
+function computeContentHash(
+    subject: string,
+    bodyContent: string,
+    allowedLanguages: string[],
+    attachments?: EmailAttachmentInfo[]
+): string {
     let input = `${subject}\n${bodyContent}`;
     if (allowedLanguages.length > 0) {
         input += `\nlang:${[...allowedLanguages].sort().join(',')}`;
+    }
+    if (attachments && attachments.length > 0) {
+        const attStr = attachments.map(a => `${a.filename}:${a.size}:${a.mimeType}`).join('|');
+        input += `\natt:${attStr}`;
     }
     return crypto.createHash('sha256').update(input).digest('hex');
 }
@@ -140,7 +150,8 @@ function buildPrompt(
     subject: string,
     bodyContent: string,
     bodyType: 'html' | 'plain' | 'none',
-    allowedLanguages: string[]
+    allowedLanguages: string[],
+    attachments?: EmailAttachmentInfo[]
 ): string {
     const lines: string[] = [];
 
@@ -168,6 +179,19 @@ function buildPrompt(
 
     lines.push('');
     lines.push(`Subject: ${subject}`);
+
+    if (attachments && attachments.length > 0) {
+        lines.push('');
+        lines.push('Attachments:');
+        for (const att of attachments) {
+            lines.push(`- ${att.filename} (${att.mimeType}, ${att.size} bytes)`);
+        }
+        lines.push('');
+        lines.push(
+            'Attachment signals: executable files (.exe, .scr, .bat, .js, .vbs) or archives (.zip, .rar) ' +
+                'strongly suggest spam/phishing. PDFs or images in marketing layouts suggest newsletters.'
+        );
+    }
 
     if (bodyContent) {
         const label = bodyType === 'html' ? 'Body (HTML)' : 'Body (text)';
@@ -224,6 +248,7 @@ async function judgeEmail(
 export async function runAIJudgment(
     messages: EmailMessage[],
     getBodyParts: (messageId: string) => Promise<EmailBodyParts>,
+    getRaw: (messageId: string) => Promise<string>,
     onProgress?: ProgressCallback
 ): Promise<Map<string, AIJudgment>> {
     cancelRequested = false;
@@ -245,13 +270,15 @@ export async function runAIJudgment(
         if (cancelRequested) break;
         const msg = messages[i];
         const bodyParts = await getBodyParts(msg.id);
+        const raw = await getRaw(msg.id);
+        const attachments = parseAttachmentsFromRaw(raw);
         const selected = selectBody(bodyParts);
         const truncated = selected.content.substring(0, MAX_BODY_LENGTH);
-        const hash = computeContentHash(msg.subject, truncated, allowedLanguages);
+        const hash = computeContentHash(msg.subject, truncated, allowedLanguages, attachments);
         if (cache[hash]) {
             results.set(msg.id, cache[hash]);
         } else {
-            const prompt = buildPrompt(msg.subject, truncated, selected.type, allowedLanguages);
+            const prompt = buildPrompt(msg.subject, truncated, selected.type, allowedLanguages, attachments);
             toProcess.push({ msg, hash, prompt });
         }
         onProgress?.({

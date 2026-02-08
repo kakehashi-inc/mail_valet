@@ -15,11 +15,19 @@ import CropSquareIcon from '@mui/icons-material/CropSquare';
 import CloseIcon from '@mui/icons-material/Close';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import StarIcon from '@mui/icons-material/Star';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../stores/useAppStore';
-import type { DetailWindowData, EmailMessage, EmailBodyParts } from '@shared/types';
+import type { DetailWindowData, EmailMessage, EmailBodyParts, EmailAttachmentInfo } from '@shared/types';
+import { parseAttachmentsFromRaw } from '@shared/mime-utils';
 
 type ViewMode = 'html' | 'htmlText' | 'plain' | 'raw';
+
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function DetailWindow() {
     const { t } = useTranslation();
@@ -31,6 +39,7 @@ export default function DetailWindow() {
     const [rawContent, setRawContent] = React.useState('');
     const [viewMode, setViewMode] = React.useState<ViewMode>('html');
     const [loading, setLoading] = React.useState(false);
+    const attachments: EmailAttachmentInfo[] = React.useMemo(() => parseAttachmentsFromRaw(rawContent), [rawContent]);
 
     React.useEffect(() => {
         window.mailvalet.getDetailData().then((d) => setData(d));
@@ -279,6 +288,26 @@ export default function DetailWindow() {
                                 <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                                     {t('detail.to')}: {selectedMsg.to}
                                 </Typography>
+                                {attachments.length > 0 && (
+                                    <Box sx={{ mt: 0.5 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
+                                            <AttachFileIcon sx={{ fontSize: '0.9rem', color: 'text.secondary' }} />
+                                            <Typography variant="body2" color="text.secondary">
+                                                {t('detail.attachments')} ({attachments.length})
+                                            </Typography>
+                                        </Box>
+                                        {attachments.map((att, i) => (
+                                            <Typography
+                                                key={i}
+                                                variant="caption"
+                                                color="text.secondary"
+                                                sx={{ display: 'block', pl: 2.5 }}
+                                            >
+                                                {att.filename} ({formatFileSize(att.size)}, {att.mimeType})
+                                            </Typography>
+                                        ))}
+                                    </Box>
+                                )}
                                 <Divider sx={{ my: 1 }} />
                                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                                     <ToggleButtonGroup
