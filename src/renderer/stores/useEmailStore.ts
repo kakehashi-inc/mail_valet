@@ -273,7 +273,14 @@ export const useEmailStore = create<EmailStoreState>((set, get) => ({
 
     fetchEmails: async (accountId, startDate, endDate, useDays) => {
         const mode: FetchMode = useDays ? 'days' : 'range';
-        set({ isFetching: true, fetchMode: mode });
+        set({
+            isFetching: true,
+            fetchMode: mode,
+            fromGroups: [],
+            subjectGroups: [],
+            ruleGroups: [],
+            selectedGroupKeys: new Set(),
+        });
         useProgressStore.setState({ fetchProgress: null });
         const unsubscribe = window.mailvalet.onFetchProgress(progress => {
             useProgressStore.setState({ fetchProgress: progress });

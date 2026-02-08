@@ -27,6 +27,7 @@ releaseInfo:
     - Fix stale rule groups persisting when sampling returns 0 results
     - Fix rule groups not rebuilding when switching fetch mode (days/range)
     - Fix race condition causing empty rule groups when switching accounts in rule mode
+    - Fix stale from/subject groups persisting after fetch returns 0 results or fails
 
 files:
   - dist/**/*
