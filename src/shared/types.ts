@@ -315,3 +315,25 @@ export interface EmptyTrashResult {
     deleted: number;
     errors: number;
 }
+
+// ---------------------------------------------------------------------------
+// Account Data Export/Import
+// ---------------------------------------------------------------------------
+export interface AccountExportData {
+    id: string;
+    email: string;
+    displayName: string;
+    provider: MailProviderId;
+    labels?: AccountLabelSelection;
+    rules?: AccountRules;
+    imap?: ImapConnectionSettings; // plaintext for cross-machine portability
+    tokens?: AccountTokens; // plaintext for cross-machine portability (Gmail only)
+}
+
+export interface FullExportData {
+    version: number;
+    exportedAt: string;
+    encryptionKey?: string; // base64 encoded encryption key for cross-machine portability
+    gcp?: GcpSettings; // plaintext for cross-machine portability
+    accounts: AccountExportData[];
+}

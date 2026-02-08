@@ -26,6 +26,8 @@ import DeselectIcon from '@mui/icons-material/Deselect';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../stores/useAppStore';
+import { useProgressStore } from '../stores/useProgressStore';
+import ProgressDialog from './ProgressDialog';
 import type { TrashWindowData, EmailMessage, EmailBodyParts, EmailAttachmentInfo } from '@shared/types';
 import { parseAttachmentsFromRaw } from '@shared/mime-utils';
 
@@ -40,6 +42,7 @@ function formatFileSize(bytes: number): string {
 export default function TrashWindow() {
     const { t } = useTranslation();
     const info = useAppStore(s => s.info);
+    const fetchProgress = useProgressStore(s => s.fetchProgress);
     const isMac = info?.os === 'darwin';
     const [data, setData] = React.useState<TrashWindowData | null>(null);
     const [messages, setMessages] = React.useState<EmailMessage[]>([]);
@@ -327,14 +330,7 @@ export default function TrashWindow() {
                         overflowY: 'auto',
                     }}
                 >
-                    {fetchingTrash ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
-                            <CircularProgress size={24} />
-                            <Typography variant="body2" sx={{ ml: 1 }}>
-                                {t('trash.loading')}
-                            </Typography>
-                        </Box>
-                    ) : messages.length === 0 ? (
+                    {messages.length === 0 && !fetchingTrash ? (
                         <Box sx={{ p: 2 }}>
                             <Typography variant="body2" color="text.secondary">
                                 {t('trash.empty')}
@@ -509,6 +505,15 @@ export default function TrashWindow() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Progress Dialog for fetching trash */}
+            <ProgressDialog
+                open={fetchingTrash}
+                title={t('trash.loading')}
+                current={fetchProgress?.current ?? 0}
+                total={fetchProgress?.total ?? 0}
+                message={fetchProgress?.message ?? ''}
+            />
         </Box>
     );
 }

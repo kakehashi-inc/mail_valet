@@ -1,5 +1,14 @@
 import crypto from 'crypto';
-import type { Account, AccountTokens, AccountLabelSelection, ImapConnectionSettings, AccountRules } from '../../shared/types';
+import type {
+    Account,
+    AccountTokens,
+    AccountLabelSelection,
+    ImapConnectionSettings,
+    AccountRules,
+    AccountExportData,
+    FullExportData,
+    GcpSettings,
+} from '../../shared/types';
 import {
     getAccountsDir,
     getAccountDir,
@@ -11,7 +20,8 @@ import {
     getAccountRulesPath,
 } from '../../shared/constants';
 import { readJsonFile, writeJsonFile, ensureDir, listDirectories, deleteDir } from './file-manager';
-import { encrypt, decrypt } from './encryption';
+import { encrypt, decrypt, exportEncryptionKey, importEncryptionKey } from './encryption';
+import { getGcpSettings, saveGcpSettings } from './settings-manager';
 
 function generateAccountId(): string {
     return crypto.randomBytes(8).toString('hex');
@@ -146,4 +156,168 @@ export async function getAccountRules(accountId: string): Promise<AccountRules> 
 
 export async function saveAccountRules(accountId: string, rules: AccountRules): Promise<void> {
     await writeJsonFile(getAccountRulesPath(accountId), rules);
+}
+
+// ---------------------------------------------------------------------------
+// Export / Import Account Data
+// ---------------------------------------------------------------------------
+const EXPORT_VERSION = 1;
+
+export async function exportAccountData(): Promise<string> {
+    const accounts = await getAllAccounts();
+    const gcpSettings = await getGcpSettings();
+    const accountsData: AccountExportData[] = [];
+
+    for (const account of accounts) {
+        const labels = await getSelectedLabels(account.id);
+        const rules = await getAccountRules(account.id);
+
+        const exportData: AccountExportData = {
+            id: account.id,
+            email: account.email,
+            displayName: account.displayName,
+            provider: account.provider,
+            labels,
+            rules,
+        };
+
+        // Include IMAP settings for IMAP accounts (plaintext for cross-machine portability)
+        if (account.provider === 'imap') {
+            const imapSettings = await getImapSettings(account.id);
+            if (imapSettings) {
+                exportData.imap = imapSettings; // Plaintext - will be re-encrypted on import
+            }
+        }
+
+        // Include OAuth tokens for Gmail accounts (plaintext for cross-machine portability)
+        if (account.provider === 'gmail') {
+            const tokens = await getAccountTokens(account.id);
+            if (tokens) {
+                exportData.tokens = tokens; // Plaintext - will be re-encrypted on import
+            }
+        }
+
+        accountsData.push(exportData);
+    }
+
+    // GCP settings (plaintext for cross-machine portability)
+    const gcpExport: GcpSettings | undefined =
+        gcpSettings.clientId || gcpSettings.clientSecret
+            ? {
+                  clientId: gcpSettings.clientId,
+                  clientSecret: gcpSettings.clientSecret, // Plaintext
+                  projectId: gcpSettings.projectId,
+              }
+            : undefined;
+
+    const exportData: FullExportData = {
+        version: EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        encryptionKey: exportEncryptionKey(),
+        gcp: gcpExport,
+        accounts: accountsData,
+    };
+
+    return JSON.stringify(exportData, null, 2);
+}
+
+export async function importAccountData(
+    json: string
+): Promise<{ imported: number; errors: string[] }> {
+    const errors: string[] = [];
+    let imported = 0;
+
+    try {
+        const data = JSON.parse(json) as FullExportData;
+
+        if (!data.version || !Array.isArray(data.accounts)) {
+            throw new Error('Invalid export data format');
+        }
+
+        // Import encryption key first (if no local key exists)
+        if (data.encryptionKey) {
+            try {
+                const imported = importEncryptionKey(data.encryptionKey);
+                if (imported) {
+                    console.log('[AccountManager] Imported encryption key from export');
+                }
+            } catch (e) {
+                errors.push(`Encryption key: ${e instanceof Error ? e.message : 'unknown error'}`);
+            }
+        }
+
+        // Import GCP settings if present (plaintext in export, will be encrypted by saveGcpSettings)
+        if (data.gcp && (data.gcp.clientId || data.gcp.clientSecret)) {
+            try {
+                await saveGcpSettings({
+                    clientId: data.gcp.clientId,
+                    clientSecret: data.gcp.clientSecret || '',
+                    projectId: data.gcp.projectId,
+                });
+            } catch (e) {
+                errors.push(`GCP settings: ${e instanceof Error ? e.message : 'unknown error'}`);
+            }
+        }
+
+        // Get existing accounts to check for duplicates
+        const existingAccounts = await getAllAccounts();
+        const existingEmails = new Set(existingAccounts.map(a => a.email.toLowerCase()));
+
+        for (const accountData of data.accounts) {
+            try {
+                // Skip if account with same email already exists
+                if (existingEmails.has(accountData.email.toLowerCase())) {
+                    errors.push(`${accountData.email}: account already exists`);
+                    continue;
+                }
+
+                // Create account directory
+                const id = generateAccountId();
+                const accountDir = getAccountDir(id);
+                const cacheDir = getAccountCacheDir(id);
+                await ensureDir(accountDir);
+                await ensureDir(cacheDir);
+
+                // Save profile
+                const profile: Account = {
+                    id,
+                    email: accountData.email,
+                    displayName: accountData.displayName,
+                    provider: accountData.provider,
+                };
+                await writeJsonFile(getAccountProfilePath(id), profile);
+
+                // Save labels
+                if (accountData.labels) {
+                    await saveSelectedLabels(id, accountData.labels);
+                } else {
+                    await writeJsonFile(getAccountLabelsPath(id), { selectedLabelIds: ['INBOX'] });
+                }
+
+                // Save rules
+                if (accountData.rules) {
+                    await saveAccountRules(id, accountData.rules);
+                }
+
+                // Save IMAP settings if present (plaintext in export, saveImapSettings encrypts)
+                if (accountData.provider === 'imap' && accountData.imap) {
+                    await saveImapSettings(id, accountData.imap);
+                }
+
+                // Save OAuth tokens if present (plaintext in export, saveAccountTokens encrypts)
+                if (accountData.provider === 'gmail' && accountData.tokens) {
+                    await saveAccountTokens(id, accountData.tokens);
+                }
+
+                imported++;
+                existingEmails.add(accountData.email.toLowerCase());
+            } catch (e) {
+                errors.push(`${accountData.email}: ${e instanceof Error ? e.message : 'unknown error'}`);
+            }
+        }
+    } catch (e) {
+        errors.push(`Parse error: ${e instanceof Error ? e.message : 'unknown error'}`);
+    }
+
+    return { imported, errors };
 }

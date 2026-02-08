@@ -416,6 +416,11 @@ export function registerAllIpcHandlers() {
     });
     ipcMain.handle(IPC_CHANNELS.DATA_EXPORT_SETTINGS, () => settingsManager.exportAllSettings());
     ipcMain.handle(IPC_CHANNELS.DATA_IMPORT_SETTINGS, (_e, json: string) => settingsManager.importAllSettings(json));
+    ipcMain.handle(IPC_CHANNELS.DATA_EXPORT_ACCOUNT_DATA, () => accountManager.exportAccountData());
+    ipcMain.handle(IPC_CHANNELS.DATA_IMPORT_ACCOUNT_DATA, (_e, json: string) =>
+        accountManager.importAccountData(json)
+    );
+
     // --- Detail window ---
     ipcMain.handle(IPC_CHANNELS.DETAIL_OPEN, async (_e, data: DetailWindowData) => {
         const existing = detailWindows.get(data.fromAddress);

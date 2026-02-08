@@ -223,5 +223,13 @@ export default {
         imported: '設定をインポートしました',
         confirmClearAICache: 'AI判定結果のキャッシュを削除しますか？',
         confirmClearAllCache: 'サンプリング結果を含む全キャッシュを削除しますか？',
+        accountData: 'アカウントデータ',
+        accountDataHelp:
+            'GCP API設定、アカウント情報（OAuthトークン/IMAPパスワード含む）、ラベル設定、ルール設定をエクスポート/インポートします。エクスポートファイルには機密情報が含まれるため、取扱いにご注意ください。',
+        exportAccountData: 'アカウントエクスポート',
+        importAccountData: 'アカウントインポート',
+        accountExported: 'アカウントデータをエクスポートしました',
+        accountImported: '{{count}}件のアカウントをインポートしました',
+        accountImportedWithErrors: '{{imported}}件インポート完了、{{errors}}件エラー',
     },
 };

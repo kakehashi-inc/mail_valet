@@ -65,6 +65,10 @@ export function getGcpSettingsPath(): string {
     return path.join(getSettingsDir(), 'gcp.json');
 }
 
+export function getEncryptionKeyPath(): string {
+    return path.join(getSettingsDir(), 'encryption-key.bin');
+}
+
 // Account file paths
 export function getAccountProfilePath(accountId: string): string {
     return path.join(getAccountDir(accountId), 'profile.json');
@@ -215,6 +219,10 @@ export const IPC_CHANNELS = {
     DATA_CLEAR_ALL_CACHE: 'data:clearAllCache',
     DATA_EXPORT_SETTINGS: 'data:exportSettings',
     DATA_IMPORT_SETTINGS: 'data:importSettings',
+    DATA_EXPORT_ACCOUNT_DATA: 'data:exportAccountData',
+    DATA_IMPORT_ACCOUNT_DATA: 'data:importAccountData',
+    DATA_EXPORT_ENCRYPTION_KEY: 'data:exportEncryptionKey',
+    DATA_IMPORT_ENCRYPTION_KEY: 'data:importEncryptionKey',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
     TRASH_OPEN: 'trash:open',

@@ -3,6 +3,7 @@ import { app, BrowserWindow, nativeTheme, ipcMain } from 'electron';
 import { setupConsoleBridge, setMainWindow } from './utils/console-bridge';
 import { registerIpcHandlers, setMainWindowRef } from './ipc/index';
 import { ensureDirectories, fileExists } from './services/file-manager';
+import { initializeEncryption } from './services/encryption';
 import { getAppState, saveAppState } from './services/state-manager';
 import { getGeneralSettings, saveGeneralSettings } from './services/settings-manager';
 import { IPC_CHANNELS, getGeneralSettingsPath } from '../shared/constants';
@@ -98,6 +99,9 @@ function resolveTheme(theme: AppTheme): AppTheme {
 
 app.whenReady().then(async () => {
     await ensureDirectories();
+
+    // Initialize encryption system (handles legacy migration if needed)
+    initializeEncryption();
 
     // First launch: detect OS language, save to settings
     const isFirstLaunch = !(await fileExists(getGeneralSettingsPath()));

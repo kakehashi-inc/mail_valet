@@ -100,6 +100,9 @@ export type IpcApi = {
     clearAllCache(): Promise<void>;
     exportSettings(): Promise<string>;
     importSettings(json: string): Promise<void>;
+    exportAccountData(): Promise<string>;
+    importAccountData(json: string): Promise<{ imported: number; errors: string[] }>;
+
     // Detail window
     openDetailWindow(data: DetailWindowData): Promise<void>;
     getDetailData(): Promise<DetailWindowData | null>;

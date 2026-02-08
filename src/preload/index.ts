@@ -57,6 +57,8 @@ const CH = {
     DATA_CLEAR_ALL_CACHE: 'data:clearAllCache',
     DATA_EXPORT_SETTINGS: 'data:exportSettings',
     DATA_IMPORT_SETTINGS: 'data:importSettings',
+    DATA_EXPORT_ACCOUNT_DATA: 'data:exportAccountData',
+    DATA_IMPORT_ACCOUNT_DATA: 'data:importAccountData',
     DETAIL_OPEN: 'detail:open',
     DETAIL_GET_DATA: 'detail:getData',
     TRASH_OPEN: 'trash:open',
@@ -143,6 +145,9 @@ const api: IpcApi = {
     clearAllCache: () => ipcRenderer.invoke(CH.DATA_CLEAR_ALL_CACHE),
     exportSettings: () => ipcRenderer.invoke(CH.DATA_EXPORT_SETTINGS),
     importSettings: json => ipcRenderer.invoke(CH.DATA_IMPORT_SETTINGS, json),
+    exportAccountData: () => ipcRenderer.invoke(CH.DATA_EXPORT_ACCOUNT_DATA),
+    importAccountData: json => ipcRenderer.invoke(CH.DATA_IMPORT_ACCOUNT_DATA, json),
+
     // Detail
     openDetailWindow: data => ipcRenderer.invoke(CH.DETAIL_OPEN, data),
     getDetailData: () => ipcRenderer.invoke(CH.DETAIL_GET_DATA),

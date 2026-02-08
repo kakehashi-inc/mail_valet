@@ -223,5 +223,13 @@ export default {
         imported: 'Settings imported',
         confirmClearAICache: 'Delete AI judgment cache?',
         confirmClearAllCache: 'Delete all cache including sampling results?',
+        accountData: 'Account Data',
+        accountDataHelp:
+            'Export/import GCP API settings, accounts (including OAuth tokens/IMAP passwords), labels, and rules. The export file contains sensitive data - handle with care.',
+        exportAccountData: 'Export Accounts',
+        importAccountData: 'Import Accounts',
+        accountExported: 'Account data exported',
+        accountImported: '{{count}} accounts imported',
+        accountImportedWithErrors: '{{imported}} imported, {{errors}} errors',
     },
 };
