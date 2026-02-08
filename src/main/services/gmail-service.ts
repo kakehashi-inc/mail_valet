@@ -520,6 +520,37 @@ export async function getEmailRaw(accountId: string, messageId: string): Promise
     return '';
 }
 
+// --- Live fetch (for trash or uncached messages) ---
+export async function getEmailBodyPartsLive(
+    accountId: string,
+    clientId: string,
+    clientSecret: string,
+    messageId: string
+): Promise<EmailBodyParts> {
+    try {
+        const data = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=full`);
+        if (data.payload) return extractBodyParts(data.payload);
+    } catch (e) {
+        console.error('[Gmail] Failed to live-fetch body parts:', e);
+    }
+    return { plain: '', html: '' };
+}
+
+export async function getEmailRawLive(
+    accountId: string,
+    clientId: string,
+    clientSecret: string,
+    messageId: string
+): Promise<string> {
+    try {
+        const data = await gmailFetch(accountId, clientId, clientSecret, `/messages/${messageId}?format=raw`);
+        if (data.raw) return decodeBase64Url(data.raw);
+    } catch (e) {
+        console.error('[Gmail] Failed to live-fetch raw:', e);
+    }
+    return '';
+}
+
 // --- Bulk delete by From address (all-period) ---
 async function searchMessageIds(
     accountId: string,

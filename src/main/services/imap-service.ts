@@ -124,7 +124,7 @@ function createImapClient(settings: ImapConnectionSettings): ImapFlow {
                   : undefined,
         logger: {
             debug: () => {},
-            info: (msg: any) => console.debug('[ImapFlow]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
+            info: () => {},
             warn: (msg: any) => console.warn('[ImapFlow]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
             error: (msg: any) => console.error('[ImapFlow]', typeof msg === 'object' ? JSON.stringify(msg) : msg),
         },
@@ -199,7 +199,6 @@ async function findTrashFolder(client: ImapFlow): Promise<string> {
     // Look for \Trash special use
     const trash = mailboxes.find((mb: ImapMailbox) => mb.specialUse === '\\Trash');
     if (trash) {
-        console.debug(`[IMAP] Trash folder found: ${trash.path} (specialUse: \\Trash)`);
         return trash.path;
     }
     // Fallback: common names
@@ -510,6 +509,62 @@ export async function getEmailRaw(accountId: string, messageId: string): Promise
     for (const mode of ['days', 'range'] as const) {
         const cached = await getCachedResult(accountId, mode);
         if (cached?.result.rawBodies?.[messageId]) return cached.result.rawBodies[messageId];
+    }
+    return '';
+}
+
+// --- Live fetch (for trash or uncached messages) ---
+export async function getEmailBodyPartsLive(
+    settings: ImapConnectionSettings,
+    messageId: string
+): Promise<EmailBodyParts> {
+    const { folderPath, uid } = parseImapMessageId(messageId);
+    const client = createImapClient(settings);
+    try {
+        await client.connect();
+        const lock = await client.getMailboxLock(folderPath);
+        try {
+            // Pass 1: fetch bodyStructure only
+            let bodyStructure: any = null;
+            for await (const msg of client.fetch([uid], { bodyStructure: true, uid: true }, { uid: true })) {
+                bodyStructure = msg.bodyStructure;
+            }
+            // Pass 2: download body parts using bodyStructure
+            if (bodyStructure) {
+                return await fetchBodyPartsForMessage(client, uid, bodyStructure);
+            }
+        } finally {
+            lock.release();
+        }
+        await client.logout();
+    } catch (e) {
+        console.error('[IMAP] Failed to live-fetch body parts:', e);
+    } finally {
+        client.close();
+    }
+    return { plain: '', html: '' };
+}
+
+export async function getEmailRawLive(
+    settings: ImapConnectionSettings,
+    messageId: string
+): Promise<string> {
+    const { folderPath, uid } = parseImapMessageId(messageId);
+    const client = createImapClient(settings);
+    try {
+        await client.connect();
+        const lock = await client.getMailboxLock(folderPath);
+        try {
+            const dl = await client.download(String(uid), undefined, { uid: true });
+            if (dl) return await streamToString(dl.content);
+        } finally {
+            lock.release();
+        }
+        await client.logout();
+    } catch (e) {
+        console.error('[IMAP] Failed to live-fetch raw:', e);
+    } finally {
+        client.close();
     }
     return '';
 }

@@ -258,13 +258,29 @@ export function registerAllIpcHandlers() {
     });
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_EMAIL_BODY_PARTS, async (_e, accountId: string, messageId: string) => {
         const provider = await getAccountProvider(accountId);
-        if (provider === 'imap') return imapService.getEmailBodyParts(accountId, messageId);
-        return gmailService.getEmailBodyParts(accountId, messageId);
+        if (provider === 'imap') {
+            const cached = await imapService.getEmailBodyParts(accountId, messageId);
+            if (cached.html || cached.plain) return cached;
+            const imapSettings = await requireImapSettings(accountId);
+            return imapService.getEmailBodyPartsLive(imapSettings, messageId);
+        }
+        const cached = await gmailService.getEmailBodyParts(accountId, messageId);
+        if (cached.html || cached.plain) return cached;
+        const gcpSettings = await settingsManager.getGcpSettings();
+        return gmailService.getEmailBodyPartsLive(accountId, gcpSettings.clientId, gcpSettings.clientSecret, messageId);
     });
     ipcMain.handle(IPC_CHANNELS.MAIL_GET_EMAIL_RAW, async (_e, accountId: string, messageId: string) => {
         const provider = await getAccountProvider(accountId);
-        if (provider === 'imap') return imapService.getEmailRaw(accountId, messageId);
-        return gmailService.getEmailRaw(accountId, messageId);
+        if (provider === 'imap') {
+            const cached = await imapService.getEmailRaw(accountId, messageId);
+            if (cached) return cached;
+            const imapSettings = await requireImapSettings(accountId);
+            return imapService.getEmailRawLive(imapSettings, messageId);
+        }
+        const cached = await gmailService.getEmailRaw(accountId, messageId);
+        if (cached) return cached;
+        const gcpSettings = await settingsManager.getGcpSettings();
+        return gmailService.getEmailRawLive(accountId, gcpSettings.clientId, gcpSettings.clientSecret, messageId);
     });
     ipcMain.handle(
         IPC_CHANNELS.MAIL_BULK_DELETE_BY_FROM,
