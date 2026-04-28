@@ -76,6 +76,22 @@ yarn dev
 
 開発時は BrowserRouter で `<http://localhost:3001>` を、配布ビルドでは HashRouter で `dist/renderer/index.html` を読み込みます。
 
+### GitHub への直接リリース (自動アップデート用)
+
+`electron-builder.yml` の `publish:` に設定した GitHub リポジトリに、ビルド成果物と `latest*.yml` (自動アップデート用メタデータ) を直接アップロードするコマンドです。`releaseType: draft` 設定のため、各コマンドは GitHub 上の **同一バージョンのドラフトリリースに集約** されます。全プラットフォーム揃ってから GitHub UI で「Publish release」を押すとユーザーへ配信されます。
+
+- Windows: `yarn release:win`
+- macOS: `yarn release:mac`
+- Linux: `yarn release:linux`
+
+実行前に GitHub Personal Access Token (`public_repo` スコープ) を環境変数 `GH_TOKEN` に設定してください。
+
+```bash
+export GH_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxx"
+```
+
+複数台で各プラットフォームをビルドする場合は、`package.json` の `version` を全マシンで一致させた上で、各マシンで該当する `release:*` を順に実行してください。
+
 ### macOS 事前準備: 署名・公証用の環境変数
 
 macOS 向けに署名・公証付きビルドを行う場合は、`yarn dist:mac` の実行前に以下の環境変数を設定してください。
