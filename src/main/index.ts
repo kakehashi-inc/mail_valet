@@ -6,6 +6,7 @@ import { ensureDirectories, fileExists } from './services/file-manager';
 import { initializeEncryption } from './services/encryption';
 import { getAppState, saveAppState } from './services/state-manager';
 import { getGeneralSettings, saveGeneralSettings } from './services/settings-manager';
+import { initializeUpdater, scheduleStartupCheck } from './services/updater';
 import { IPC_CHANNELS, getGeneralSettingsPath } from '../shared/constants';
 import type { AppInfo, AppLanguage, AppTheme, PlatformId } from '../shared/types';
 
@@ -112,6 +113,7 @@ app.whenReady().then(async () => {
 
     setupConsoleBridge();
     registerIpcHandlers();
+    initializeUpdater();
 
     // App info
     ipcMain.handle(IPC_CHANNELS.APP_GET_INFO, async (): Promise<AppInfo> => {
@@ -157,6 +159,10 @@ app.whenReady().then(async () => {
     });
 
     await createWindow();
+
+    if (mainWindow) {
+        scheduleStartupCheck(mainWindow);
+    }
 });
 
 app.on('window-all-closed', () => {

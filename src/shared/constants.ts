@@ -236,4 +236,9 @@ export const IPC_CHANNELS = {
     EVENT_DETAIL_DATA: 'event:detailData',
     STATE_GET: 'state:get',
     STATE_SAVE: 'state:save',
+    UPDATER_CHECK: 'updater:check',
+    UPDATER_DOWNLOAD: 'updater:download',
+    UPDATER_QUIT_AND_INSTALL: 'updater:quitAndInstall',
+    UPDATER_GET_STATE: 'updater:getState',
+    UPDATER_STATE_CHANGED: 'updater:stateChanged',
 } as const;

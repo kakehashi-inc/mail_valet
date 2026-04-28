@@ -211,6 +211,14 @@ export default {
         selected: '選択中',
     },
 
+    updater: {
+        confirm: '新しいバージョン v{{version}} が利用可能です。アップデートしますか？',
+        update: 'アップデート',
+        later: '後で',
+        downloading: 'ダウンロード中... {{progress}}%',
+        installing: 'アップデートを適用しています...',
+    },
+
     data: {
         cache: 'キャッシュ',
         clearAICache: 'AI判定キャッシュクリア',

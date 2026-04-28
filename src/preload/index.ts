@@ -72,6 +72,11 @@ const CH = {
     EVENT_DETAIL_DATA: 'event:detailData',
     STATE_GET: 'state:get',
     STATE_SAVE: 'state:save',
+    UPDATER_CHECK: 'updater:check',
+    UPDATER_DOWNLOAD: 'updater:download',
+    UPDATER_QUIT_AND_INSTALL: 'updater:quitAndInstall',
+    UPDATER_GET_STATE: 'updater:getState',
+    UPDATER_STATE_CHANGED: 'updater:stateChanged',
 } as const;
 
 const api: IpcApi = {
@@ -179,6 +184,19 @@ const api: IpcApi = {
         const handler = (_event: unknown, data: any) => callback(data);
         ipcRenderer.on(CH.EVENT_DETAIL_DATA, handler);
         return () => ipcRenderer.removeListener(CH.EVENT_DETAIL_DATA, handler);
+    },
+
+    // Auto updater
+    updater: {
+        getState: () => ipcRenderer.invoke(CH.UPDATER_GET_STATE),
+        check: () => ipcRenderer.invoke(CH.UPDATER_CHECK),
+        download: () => ipcRenderer.invoke(CH.UPDATER_DOWNLOAD),
+        quitAndInstall: () => ipcRenderer.invoke(CH.UPDATER_QUIT_AND_INSTALL),
+        onStateChanged: callback => {
+            const handler = (_event: unknown, state: any) => callback(state);
+            ipcRenderer.on(CH.UPDATER_STATE_CHANGED, handler);
+            return () => ipcRenderer.removeListener(CH.UPDATER_STATE_CHANGED, handler);
+        },
     },
 };
 

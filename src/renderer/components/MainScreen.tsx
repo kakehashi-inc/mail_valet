@@ -3,7 +3,7 @@ import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, Typogra
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DateRangeIcon from '@mui/icons-material/DateRange';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import { useTranslation } from 'react-i18next';
 import FetchControls from './FetchControls';
 import AIFilterBar from './AIFilterBar';

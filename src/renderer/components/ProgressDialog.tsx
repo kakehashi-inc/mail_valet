@@ -15,7 +15,14 @@ export default function ProgressDialog({ open, title, current, total, message, o
     const progress = total > 0 ? (current / total) * 100 : 0;
 
     return (
-        <Dialog open={open} maxWidth="sm" fullWidth disableEscapeKeyDown>
+        <Dialog
+            open={open}
+            maxWidth="sm"
+            fullWidth
+            onClose={(_event, reason) => {
+                if (reason === 'escapeKeyDown') return;
+            }}
+        >
             <DialogTitle>{title}</DialogTitle>
             <DialogContent>
                 <Box sx={{ mb: 2 }}>

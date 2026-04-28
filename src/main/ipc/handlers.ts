@@ -6,6 +6,7 @@ import * as gmailService from '../services/gmail-service';
 import * as imapService from '../services/imap-service';
 import * as ollamaService from '../services/ollama-service';
 import * as stateManager from '../services/state-manager';
+import * as updaterService from '../services/updater';
 import { deleteDir } from '../services/file-manager';
 import { getAccountCacheDir } from '../../shared/constants';
 import type {
@@ -610,4 +611,10 @@ export function registerAllIpcHandlers() {
     // --- App state ---
     ipcMain.handle(IPC_CHANNELS.STATE_GET, () => stateManager.getAppState());
     ipcMain.handle(IPC_CHANNELS.STATE_SAVE, (_e, state) => stateManager.saveAppState(state));
+
+    // --- Auto updater ---
+    ipcMain.handle(IPC_CHANNELS.UPDATER_GET_STATE, () => updaterService.getUpdateState());
+    ipcMain.handle(IPC_CHANNELS.UPDATER_CHECK, () => updaterService.checkForUpdates());
+    ipcMain.handle(IPC_CHANNELS.UPDATER_DOWNLOAD, () => updaterService.downloadUpdate());
+    ipcMain.handle(IPC_CHANNELS.UPDATER_QUIT_AND_INSTALL, () => updaterService.quitAndInstall());
 }

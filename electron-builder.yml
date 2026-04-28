@@ -10,8 +10,8 @@ portable:
 publish:
   provider: github
   owner: kakehashi-inc
-  repo: https://github.com/kakehashi-inc/mail_valet
-  releaseType: release
+  repo: mail_valet
+  releaseType: draft
 releaseInfo:
   releaseName: "v${version}"
   releaseNotes: |

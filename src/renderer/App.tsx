@@ -9,6 +9,7 @@ import DetailWindow from './components/DetailWindow';
 import TrashWindow from './components/TrashWindow';
 import SettingsDialog from './components/SettingsDialog';
 import ProgressDialogs from './components/ProgressDialogs';
+import UpdaterNotification from './components/UpdaterNotification';
 import { useAppStore } from './stores/useAppStore';
 import { useAccountStore } from './stores/useAccountStore';
 import { useEmailStore } from './stores/useEmailStore';
@@ -81,6 +82,7 @@ export default function App() {
                 <MainScreen />
                 <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
                 <ProgressDialogs />
+                <UpdaterNotification />
             </Box>
         </ThemeProvider>
     );

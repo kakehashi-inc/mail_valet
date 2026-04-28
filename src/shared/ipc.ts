@@ -28,7 +28,16 @@ import type {
     TrashWindowData,
     EmptyTrashResult,
     EmailMessage,
+    UpdateState,
 } from './types';
+
+export interface UpdaterApi {
+    getState(): Promise<UpdateState>;
+    check(): Promise<void>;
+    download(): Promise<void>;
+    quitAndInstall(): Promise<void>;
+    onStateChanged(callback: (state: UpdateState) => void): () => void;
+}
 
 export type IpcApi = {
     // App info
@@ -123,6 +132,9 @@ export type IpcApi = {
     onFetchProgress(callback: (progress: FetchProgress) => void): () => void;
     onAIProgress(callback: (progress: AIProgress) => void): () => void;
     onDetailData(callback: (data: DetailWindowData) => void): () => void;
+
+    // Auto updater
+    updater: UpdaterApi;
 };
 
 declare global {

@@ -79,7 +79,7 @@ export default function SettingsDialog({ open, onClose }: Props) {
             onClose={onClose}
             maxWidth="md"
             fullWidth
-            PaperProps={{ sx: { height: '80vh' } }}
+            slotProps={{ paper: { sx: { height: '80vh' } } }}
         >
             <DialogTitle sx={{ display: 'flex', alignItems: 'center' }}>
                 {t('settings.title')}

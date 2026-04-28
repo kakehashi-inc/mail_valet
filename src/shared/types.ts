@@ -337,3 +337,15 @@ export interface FullExportData {
     gcp?: GcpSettings; // plaintext for cross-machine portability
     accounts: AccountExportData[];
 }
+
+// ---------------------------------------------------------------------------
+// Auto Updater
+// ---------------------------------------------------------------------------
+export type UpdateStatus = 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+
+export interface UpdateState {
+    status: UpdateStatus;
+    version?: string;
+    progress?: number;
+    error?: string;
+}
