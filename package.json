@@ -32,6 +32,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/archiver": "^7.0.0",
     "@types/imapflow": "^1.0.189",
     "@types/node": "^22.19.17",
     "@types/react": "^19.2.14",
@@ -40,6 +41,7 @@
     "@typescript-eslint/eslint-plugin": "^8.59.1",
     "@typescript-eslint/parser": "^8.59.1",
     "@vitejs/plugin-react": "^6.0.1",
+    "archiver": "^7.0.1",
     "concurrently": "^9.2.1",
     "electron": "^41.3.0",
     "electron-builder": "^26.9.0",

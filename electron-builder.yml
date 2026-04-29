@@ -4,6 +4,7 @@ directories:
   output: release
   buildResources: build
 artifactName: "mailvalet-${version}-${os}-${arch}.${ext}"
+afterAllArtifactBuild: scripts/zip-portable.js
 portable:
   artifactName: "mailvalet-${version}-${os}-${arch}-portable.${ext}"
   buildUniversalInstaller: false
