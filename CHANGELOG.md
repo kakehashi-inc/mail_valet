@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-05-21
+
 ### Changed
 
 - Upgraded `@mui/material` and `@mui/icons-material` from v7 to v9. Adjusted breaking changes (`PaperProps` -> `slotProps.paper`, `disableEscapeKeyDown` -> `onClose` reason filter, `DeleteOutline` -> `DeleteOutlined` icon).
