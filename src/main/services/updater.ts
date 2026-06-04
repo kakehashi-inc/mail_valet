@@ -16,6 +16,12 @@ let initialized = false;
 let startupCheckScheduled = false;
 let currentState: UpdateState = { status: 'idle' };
 let autoInstallOnDownloaded = false;
+// True only while a user-initiated downloadUpdate() is in flight. autoUpdater's
+// 'error' event is global, so startup/background check failures (e.g. offline)
+// land on the same handler as download failures. This flag lets the handler show
+// an error only for downloads the user explicitly requested, and stay silent for
+// background failures.
+let downloadRequested = false;
 
 function broadcastState() {
     for (const win of BrowserWindow.getAllWindows()) {
@@ -69,6 +75,7 @@ export function initializeUpdater() {
     });
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+        downloadRequested = false;
         setState({ status: 'downloaded', version: info.version }, true);
         if (autoInstallOnDownloaded) {
             setTimeout(() => {
@@ -80,7 +87,15 @@ export function initializeUpdater() {
     autoUpdater.on('error', (err: Error) => {
         console.error('[updater] error', err);
         autoInstallOnDownloaded = false;
-        setState({ status: 'idle' }, true);
+        if (downloadRequested) {
+            // User-initiated download failed: surface the error so the UI can
+            // offer retry/close.
+            downloadRequested = false;
+            setState({ status: 'error', version: currentState.version, error: err.message }, true);
+        } else {
+            // Startup/background check failure (e.g. offline): fail silently.
+            setState({ status: 'idle' }, true);
+        }
     });
 }
 
@@ -98,11 +113,20 @@ export async function downloadUpdate() {
     if (isUpdaterDisabled) return;
     if (!initialized) return;
     autoInstallOnDownloaded = true;
+    downloadRequested = true;
     try {
         await autoUpdater.downloadUpdate();
     } catch (err) {
-        autoInstallOnDownloaded = false;
         console.error('[updater] downloadUpdate failed', err);
+        // The 'error' event normally fires first and delivers the error state.
+        // If the flag is still set, the event did not run, so surface it here as
+        // a fallback. The flag guard keeps this idempotent across both paths.
+        if (downloadRequested) {
+            autoInstallOnDownloaded = false;
+            downloadRequested = false;
+            const message = err instanceof Error ? err.message : String(err);
+            setState({ status: 'error', version: currentState.version, error: message }, true);
+        }
     }
 }
 

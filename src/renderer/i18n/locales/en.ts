@@ -217,6 +217,9 @@ export default {
         later: 'Later',
         downloading: 'Downloading... {{progress}}%',
         installing: 'Applying update...',
+        error: 'Update failed. Please try again.',
+        retry: 'Retry',
+        close: 'Close',
     },
 
     data: {

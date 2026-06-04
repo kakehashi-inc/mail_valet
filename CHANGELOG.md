@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Auto-update now works on macOS. Previously, clicking "Update" did nothing and showed no progress or error. (Note: this fix takes effect only after updating to this version; existing macOS users need to install this version manually once.)
+- When an update download fails, an error message with "Retry" and "Close" buttons is now shown instead of the notification silently disappearing.
+- Update checks that run automatically in the background (for example, when you are offline) no longer interfere with the app; they now fail quietly without showing an error.
+
+### Added
+
+- The update notification now shows download progress and clear feedback for every outcome (in progress, failed, or applying).
+
 ## [v0.3.0] - 2026-05-21
 
 ### Changed

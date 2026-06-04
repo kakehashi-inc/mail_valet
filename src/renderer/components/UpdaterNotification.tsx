@@ -15,10 +15,11 @@ export default function UpdaterNotification() {
         return () => unsubscribe();
     }, []);
 
-    const { status, version, progress } = state;
+    const { status, version, progress, error } = state;
 
     const isVisible =
-        !dismissed && (status === 'available' || status === 'downloading' || status === 'downloaded');
+        !dismissed &&
+        (status === 'available' || status === 'downloading' || status === 'downloaded' || status === 'error');
 
     if (!isVisible) return null;
 
@@ -35,13 +36,13 @@ export default function UpdaterNotification() {
     if (status === 'available') {
         content = (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 320 }}>
-                <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                <Typography variant='body2' sx={{ flexGrow: 1 }}>
                     {t('updater.confirm', { version })}
                 </Typography>
-                <Button size="small" variant="contained" onClick={handleUpdate}>
+                <Button size='small' variant='contained' onClick={handleUpdate}>
                     {t('updater.update')}
                 </Button>
-                <Button size="small" onClick={handleLater}>
+                <Button size='small' onClick={handleLater}>
                     {t('updater.later')}
                 </Button>
             </Box>
@@ -50,15 +51,36 @@ export default function UpdaterNotification() {
         const pct = Math.max(0, Math.min(100, Math.round(progress ?? 0)));
         content = (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 320 }}>
-                <Typography variant="body2">{t('updater.downloading', { progress: pct })}</Typography>
-                <LinearProgress variant="determinate" value={pct} />
+                <Typography variant='body2'>{t('updater.downloading', { progress: pct })}</Typography>
+                <LinearProgress variant='determinate' value={pct} />
             </Box>
         );
     } else if (status === 'downloaded') {
         content = (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 320 }}>
-                <Typography variant="body2">{t('updater.installing')}</Typography>
+                <Typography variant='body2'>{t('updater.installing')}</Typography>
                 <LinearProgress />
+            </Box>
+        );
+    } else if (status === 'error') {
+        content = (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 320 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant='body2' sx={{ flexGrow: 1 }}>
+                        {t('updater.error')}
+                    </Typography>
+                    <Button size='small' variant='contained' onClick={handleUpdate}>
+                        {t('updater.retry')}
+                    </Button>
+                    <Button size='small' onClick={handleLater}>
+                        {t('updater.close')}
+                    </Button>
+                </Box>
+                {error && (
+                    <Typography variant='caption' color='text.secondary' sx={{ wordBreak: 'break-word' }}>
+                        {error}
+                    </Typography>
+                )}
             </Box>
         );
     }
