@@ -6,7 +6,7 @@ import { ensureDirectories, fileExists } from './services/file-manager';
 import { initializeEncryption } from './services/encryption';
 import { getAppState, saveAppState } from './services/state-manager';
 import { getGeneralSettings, saveGeneralSettings } from './services/settings-manager';
-import { initializeUpdater, scheduleStartupCheck } from './services/updater';
+import { initializeUpdater, scheduleStartupCheck, isUpdateInstalling } from './services/updater';
 import { IPC_CHANNELS, getGeneralSettingsPath } from '../shared/constants';
 import type { AppInfo, AppLanguage, AppTheme, PlatformId } from '../shared/types';
 
@@ -88,8 +88,12 @@ async function createWindow() {
         setMainWindow(null);
         setMainWindowRef(null);
         mainWindow = null;
-        // Quit the app when the main window is closed
-        app.quit();
+        // Quit the app when the main window is closed, unless an update install is in
+        // progress: in that case the updater drives the quit/relaunch and must not be
+        // raced by app.quit() here.
+        if (!isUpdateInstalling()) {
+            app.quit();
+        }
     });
 }
 
@@ -166,6 +170,9 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+    // Skip while an update is installing: the updater performs the quit and relaunch,
+    // and a competing app.quit() can terminate the process before staging completes.
+    if (isUpdateInstalling()) return;
     app.quit();
 });
 

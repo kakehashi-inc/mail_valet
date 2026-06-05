@@ -22,6 +22,11 @@ let autoInstallOnDownloaded = false;
 // an error only for downloads the user explicitly requested, and stay silent for
 // background failures.
 let downloadRequested = false;
+// Set once quitAndInstall starts. On macOS the native Squirrel updater performs the
+// quit and relaunch itself, so the app's own quit handlers (window-all-closed and the
+// main window 'closed' handler) must NOT call app.quit() while this is true, otherwise
+// they race the updater and kill the process before the install/relaunch completes.
+let installing = false;
 
 function broadcastState() {
     for (const win of BrowserWindow.getAllWindows()) {
@@ -40,13 +45,22 @@ export function getUpdateState(): UpdateState {
     return currentState;
 }
 
+export function isUpdateInstalling(): boolean {
+    return installing;
+}
+
 export function initializeUpdater() {
     if (isUpdaterDisabled) return;
     if (initialized) return;
     initialized = true;
 
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
+    // Must be true so the macOS native Squirrel updater stages the update right after
+    // download (MacUpdater.updateDownloaded calls nativeUpdater.checkForUpdates while
+    // the proxy server is still serving the zip). With false, staging is deferred into
+    // quitAndInstall as an async fetch that races the app's own quit handlers, so the
+    // process exits before the update is installed. See Documents/システム仕様.md.
+    autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.logger = console;
 
     autoUpdater.on('checking-for-update', () => {
@@ -133,10 +147,12 @@ export async function downloadUpdate() {
 export function quitAndInstall() {
     if (isUpdaterDisabled) return;
     if (!initialized) return;
+    // Delegate quit and relaunch entirely to the updater. Do NOT close windows or call
+    // app.quit() here: on macOS the native Squirrel updater drives the quit/relaunch,
+    // and closing windows would trigger the app's quit handlers, racing and killing the
+    // process before the install completes. The flag suppresses those handlers.
+    installing = true;
     setImmediate(() => {
-        for (const win of BrowserWindow.getAllWindows()) {
-            if (!win.isDestroyed()) win.close();
-        }
         autoUpdater.quitAndInstall(false, true);
     });
 }
